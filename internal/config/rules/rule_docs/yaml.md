@@ -1,0 +1,1 @@
+检查 YAML 文件中的 yaml-keys 是否存在拼写错误；忽略 yaml-values 的内容。
