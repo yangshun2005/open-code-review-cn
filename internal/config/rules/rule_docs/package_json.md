@@ -1,0 +1,3 @@
+- 避免引入版本为 `latest` 或 `*` 的依赖；请使用具体的版本号。注意：当版本号不在新增代码行时，忽略此规则
+- 依赖冲突或重复声明：同一依赖同时存在于 `dependencies` 和 `devDependencies` 中
+- 必需的工具依赖未声明：`scripts` 中出现的工具名称（如 eslint、jest 或 prettier）未在 `devDependencies` 中列出
