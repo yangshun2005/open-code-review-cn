@@ -1,36 +1,36 @@
-#### 明显的拼写错误或拼写错误
-- 宏名称、赋值变量名称或用户可见文本在其声明位置存在拼写错误；不要在引用位置报告
-- `<#assign>`/`<#macro>`/`<#function>` 名称中的拼写错误仅在渲染时显现（`InvalidReferenceException` / 宏未找到），或被 `!` 默认值和 `??` 守卫静默掩盖
+#### Obvious Typos or Spelling Errors
+- Spelling errors in macro names, assigned variable names, or user-facing text at their declaration sites; do not report at reference sites
+- Typos in `<#assign>`/`<#macro>`/`<#function>` names that surface only at render time (`InvalidReferenceException` / macro not found), or that are silently masked by `!` defaults and `??` guards
 
-#### 输出转义与 XSS
-- 未经过转义就进入 HTML 的插值（`${...}`）：仅在自动转义未激活时标记——即模板缺少 `<#ftl output_format="HTML">`（FreeMarker 2.3.24+）且未使用 `.ftlh`/`.ftlx` 扩展名（这些扩展名通过 `recognize_standard_file_extensions` 自动激活 HTML/XML 转义，自 2.3.24 起默认开启）——并且值未根据其输出位置（HTML 正文、属性、URL、JS、CSS）通过 `?html`/`?url`/`?js_string` 进行适当处理
-- 对携带用户控制数据的值显式使用 `?no_esc` 或 `<#noautoesc>`——视为高风险逃生通道；除非来源明确可信或已净化，否则标记
-- 使用错误的上下文内置函数进行转义（例如，对放置在 URL 或内联 `<script>` 中的值使用 `?html`）
-- 当文件的输出格式已激活自动转义且没有覆盖禁用它时，不要报告缺少 `?html`
+#### Output Escaping and XSS
+- Interpolations (`${...}`) that reach HTML without escaping: flag only when auto-escaping is not already active — i.e. the template lacks `<#ftl output_format="HTML">` (FreeMarker 2.3.24+) AND does not use the `.ftlh`/`.ftlx` extension (which auto-activate HTML/XML escaping via `recognize_standard_file_extensions`, on by default since 2.3.24) — and the value is not passed through `?html`/`?url`/`?js_string` appropriate to its sink (HTML body, attribute, URL, JS, CSS)
+- Explicit `?no_esc` or `<#noautoesc>` on values that carry user-controlled data — treat as a high-risk escape hatch; flag unless the source is clearly trusted or already sanitized
+- Escaping with the wrong context builtin (e.g. `?html` for a value placed inside a URL or inline `<script>`)
+- Do not report missing `?html` when auto-escaping is active for the file's output format and no override disables it
 
-#### 模板注入 / RCE（SSTI）
-- 用户控制的数据拼接到模板源码中，或模板名称/内容源自请求输入（`<#include>`、`<#import>`、`.get_optional_template(userValue)`）——可实现服务端模板注入
-- 使用 `?new()` 内置函数实例化 `TemplateModel` 类，尤其是 `freemarker.template.utility.Execute` 或 `ObjectConstructor`——任意代码执行；除非该类是经过审查的内部类型，否则标记
-- 对不可信输入使用 `?api` / `?eval`，或将可访问原始 `Class`/`ClassLoader`/`ProcessBuilder` 的对象暴露到数据模型中
-- 从未受信任的输入编写模板且未使用受限的 `TemplateClassResolver`（如 `SAFER_RESOLVER`）——将其指出为加固缺口
+#### Template Injection / RCE (SSTI)
+- User-controlled data concatenated into template source, or templates whose name/body derives from request input (`<#include>`, `<#import>`, `.get_optional_template(userValue)`) — enables server-side template injection
+- Use of the `?new()` builtin to instantiate `TemplateModel` classes, especially `freemarker.template.utility.Execute` or `ObjectConstructor` — arbitrary code execution; flag unless the class is a vetted internal type
+- `?api` / `?eval` on untrusted input, or exposing raw `Class`/`ClassLoader`/`ProcessBuilder`-reachable objects into the data model
+- Templates authored from untrusted input without a restricted `TemplateClassResolver` (e.g. `SAFER_RESOLVER`) — call it out as a hardening gap
 
-#### 空值与缺失值处理
-- 对可能不存在的值进行插值或指令参数传递，未使用 `!`（默认值）或 `??`（存在性检查）——缺失值在渲染时会引发 `InvalidReferenceException`
-- 过度使用裸 `!`，用静默空字符串掩盖真正必需的数据；在缺失有意义的情况下，优先使用显式默认值（`value!"fallback"`）或 `<#if value??>` 守卫
-- 表达式中的 `!` 优先级错误（`a.b.c!` 仅守卫最后一步）；确认预期的可空段
+#### Null and Missing-Value Handling
+- Interpolations or directive arguments on possibly-absent values without `!` (default) or `??` (existence) — missing values raise `InvalidReferenceException` at render time
+- Overuse of a bare `!` that masks genuinely-required data with a silent empty string; prefer an explicit default (`value!"fallback"`) or an `<#if value??>` guard where absence is meaningful
+- `!` precedence mistakes in expressions (`a.b.c!` guards only the last step); confirm the intended nullable segment
 
-#### 模板中的逻辑异味
-- 嵌入模板中的业务逻辑、数据访问或非平凡计算，这些应属于控制器/模型层
-- 深度嵌套的 `<#if>`/`<#list>` 或重复的条件块，表明视图在承担模型的工作
-- 使用 `<#assign>` 构建本应在渲染前准备好的状态
+#### Logic-in-Template Smells
+- Business logic, data-access, or non-trivial computation embedded in templates that belongs in the controller/model layer
+- Deeply nested `<#if>`/`<#list>` or duplicated conditional blocks that indicate the view is doing the model's job
+- `<#assign>` used to build state that should have been prepared before rendering
 
-#### 宏与包含卫生
-- 在应使用 `<#import>`（带命名空间）时使用 `<#include>`，导致全局命名空间污染或意外变量遮蔽
-- 定义了但从未调用的宏/函数，或跨模板重复定义而未通过公共库模板共享
-- 传递给 `<#include>`/`.get_optional_template` 的相对模板名称在解析上下文不明确时未使用 `?absolute_template_name`
-- 可选包含的模板缺失失败未处理（`.get_optional_template(...).exists`）
+#### Macro and Include Hygiene
+- `<#include>` where `<#import>` (namespaced) is intended, causing global-namespace pollution or accidental variable shadowing
+- Macros/functions defined but never called, or duplicated across templates instead of shared via a common library template
+- Relative template names passed to `<#include>`/`.get_optional_template` without `?absolute_template_name` when resolution context is ambiguous
+- Missing-template failures not handled (`.get_optional_template(...).exists`) where the include is optional
 
-#### 国际化与区域敏感格式化
-- 数字、日期、时间和货币使用区域默认格式输出，而需要固定机器格式（例如，URL、JSON 或 ID 中的数字使用 `?string`/`?c`）——`?c`（计算机格式）可防止区域相关的千位分隔符破坏非显示输出
-- 硬编码的用户可见字符串应来自本地化消息/资源包
-- 日期/数字输出依赖隐式区域/时区，而未确认渲染环境有意设置它们
+#### Internationalization and Locale-Sensitive Formatting
+- Numbers, dates, times, and currency emitted with locale-default formatting where a fixed machine format is required (e.g. `?string`/`?c` for numbers in URLs, JSON, or IDs) — `?c` (computer format) prevents locale-dependent thousands separators corrupting non-display output
+- Hard-coded user-facing strings that should come from a localized message/resource bundle
+- Date/number output relying on an implicit locale/timezone without confirming the render environment sets them intentionally

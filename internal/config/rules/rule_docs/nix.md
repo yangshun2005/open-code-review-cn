@@ -1,32 +1,32 @@
-> 宁缺毋滥：仅报告那些可能导致求值失败、可复现性受损、构建隔离被破坏、安全漏洞或部署行为异常等 Nix 问题。不要报告 `nixfmt` 或项目风格可处理的格式问题，也不要在仓库有意使用 channels 或传统 Nix 时强制要求使用 flakes。
+> Favor precision over recall: report only Nix issues that are likely to break evaluation, reproducibility, build isolation, security, or deployment behavior. Do not report formatting that `nixfmt` or project style would handle, and do not require flakes when the repository intentionally uses channels or legacy Nix.
 
-#### 求值与属性集
-- 同一属性集中出现重复的属性定义，或属性覆盖在变更作用域内意外替换了先前定义的值。
-- 引用了变更表达式中不在作用域内的 `self`、`super`、`pkgs`、`config` 或函数参数。
-- `inherit` 语句引用了不存在的名称，或从无法包含所请求属性的属性集中继承。
-- 递归属性集（`rec`）中，某个值直接依赖自身，或通过明显的循环依赖自身。
+#### Evaluation and Attribute Sets
+- Duplicate attribute definitions in the same attrset, or an attribute override that unintentionally replaces a previously defined value in the changed scope.
+- Referencing `self`, `super`, `pkgs`, `config`, or function arguments that are not in scope for the changed expression.
+- `inherit` statements that reference missing names, or inherit from an attrset that cannot contain the requested attribute.
+- Recursive attrsets (`rec`) where a value depends on itself directly or through an obvious cycle.
 
-#### 可复现性与固定版本
-- 诸如 `fetchTarball`、`fetchGit`、`fetchurl`、`fetchFromGitHub` 或 `builtins.fetch*` 等获取器，在影响包、模块或部署输出时，未使用固定的修订版本和哈希值。
-- 版本字符串、源码修订版本和哈希值变更不一致，例如包版本升级但未同步更新对应的源码修订版本/哈希值。
-- 在已固定版本的 flake 或基于 lockfile 的代码中，从 `<nixpkgs>` 或可变 channels 导入，除非现有相邻代码有意遵循相同模式。
+#### Reproducibility and Pinning
+- Fetchers such as `fetchTarball`, `fetchGit`, `fetchurl`, `fetchFromGitHub`, or `builtins.fetch*` without a fixed revision and hash when the source affects a package, module, or deployment output.
+- Version strings, source revisions, and hashes that are changed inconsistently, for example a package version bump without the matching source revision/hash update.
+- Imports from `<nixpkgs>` or mutable channels in otherwise pinned flake or lockfile-based code, unless existing neighboring code deliberately follows the same pattern.
 
-#### 构建与打包正确性
-- 派生体使用了未声明的构建工具或运行时依赖，而未将其添加到 `nativeBuildInputs`、`buildInputs`、`propagatedBuildInputs` 或包装器输入中。
-- 阶段覆盖丢弃了必需的默认行为且未重新引入，例如替换 `installPhase` 但未将输出安装到 `$out`。
-- 在应在 Nix 沙箱中构建的派生体中，硬编码了主机路径、用户主目录路径或 `/usr/bin` 工具。
-- `meta.mainProgram`、`passthru.tests` 或输出名称与已安装的二进制文件或引用的包属性变更不一致。
+#### Build and Packaging Correctness
+- Derivations that use undeclared build tools or runtime dependencies instead of adding them to `nativeBuildInputs`, `buildInputs`, `propagatedBuildInputs`, or wrapper inputs.
+- Phase overrides that drop required default behavior without reintroducing it, such as replacing `installPhase` without installing outputs into `$out`.
+- Hardcoded host paths, user home paths, or `/usr/bin` tools inside derivations that should build in the Nix sandbox.
+- `meta.mainProgram`, `passthru.tests`, or output names that are changed inconsistently with installed binaries or referenced package attributes.
 
-#### NixOS 与 Home Manager 模块
-- 使用未声明的选项、默认值类型与声明的 `types.*` 不匹配的选项，或已重命名但无兼容别名或迁移路径的选项。
-- Systemd 服务、定时器、用户、组、端口或文件路径的更改与现有模块选项冲突，或导致激活失败。
-- 密钥或凭据直接嵌入模块默认值、环境变量、脚本或生成的配置中，而非来自密钥管理或受保护文件。
+#### NixOS and Home Manager Modules
+- Options used before declaration, options with defaults whose type does not match the declared `types.*`, or renamed options without a compatibility alias or migration path.
+- Systemd service, timer, user, group, port, or file path changes that conflict with existing module options or make activation fail.
+- Secrets or credentials embedded directly in module defaults, environment variables, scripts, or generated config instead of coming from secret management or protected files.
 
-#### Overlays 与 Flakes
-- Overlay 函数的参数顺序或名称颠倒（`final`/`prev`、`self`/`super`），导致从错误的包集中拉取包。
-- Flake 输出引用了不存在的输入、不支持的系统，或未为每个声明的系统定义的包属性。
-- 为某个系统添加包/应用/检查/devShell，而周围的 flake 辅助函数期望所有系统暴露相同的属性。
+#### Overlays and Flakes
+- Overlay functions with argument order or names swapped (`final`/`prev`, `self`/`super`) causing packages to be pulled from the wrong package set.
+- Flake outputs that reference missing inputs, unsupported systems, or package attributes not defined for every advertised system.
+- Adding a package/app/check/devShell for one system while the surrounding flake helper expects all systems to expose the same attribute.
 
-#### 审查范围
-- 重点关注求值失败、不可复现的源、沙箱逃逸、缺失依赖、模块激活错误和密钥泄露。
-- 不要标记纯偏好性的风格选择、属性排序，或与相邻 Nix 文件一致的惯用写法。
+#### Review Scope
+- Focus on evaluation failures, non-reproducible sources, sandbox escapes, missing dependencies, module activation errors, and secret exposure.
+- Do not flag preference-only style choices, attr ordering, or idioms that are consistent with neighboring Nix files.

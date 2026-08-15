@@ -1,1 +1,1 @@
-检查 JSON 文件中的拼写错误，针对 JSON 键（json-keys）；忽略 JSON 值（json-values）的内容。
+Check JSON files for spelling errors in json-keys; ignore the content of json-values.

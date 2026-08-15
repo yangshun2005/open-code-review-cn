@@ -1,76 +1,76 @@
-> 宁缺毋滥：仅在确信是真正缺陷时才提出问题，当上下文不明确时保持沉默——误报比漏掉小问题更消耗审查者的信任。将安全和正确性问题视为阻塞性问题，将风格或习惯用法建议视为非阻塞性问题。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking.
 
-#### 明显的拼写错误
-- 变量、函数、类或模块名称在声明处的拼写错误；不要在引用处报告拼写错误，因为这些由声明决定
-- 日志消息或异常消息中的字符串包含影响可读性的拼写错误
+#### Obvious Typos or Spelling Errors
+- Spelling errors in variable, function, class, or module names at their declaration sites; do not report spelling errors at reference sites, as these are determined by the declaration
+- Strings in log messages or exception messages containing spelling errors that affect readability
 
-#### 死代码
-- 永远无法到达的代码块（例如，条件始终为假的分支，`return`、`raise`、`break` 或 `continue` 之后的代码）
-- 声明但从未被读取或引用的变量、导入或函数参数
-- 没有明显保留意图的大块注释掉的代码
+#### Dead Code
+- Code blocks that can never be reached (e.g., branches where the condition is always false, code after a `return`, `raise`, `break`, or `continue`)
+- Variables, imports, or function parameters that are declared but never read or referenced
+- Large blocks of commented-out code with no apparent intent to preserve
 
-#### 可变默认参数和共享状态
-- 可变默认参数，如 `def f(x=[])` 或 `def f(x={})`；默认值只创建一次，并在每次调用之间共享。默认使用 `None`，并在函数体内构建该值
-- 类级别的可变属性在需要每个实例独立值时被意外地在实例之间共享
-- 模块级别的可变全局变量（列表、字典、缓存）在请求或线程之间被修改，以令调用者惊讶的方式保留状态
-- 闭包通过引用捕获循环变量，最终所有闭包都看到其最终值
-- 当函数从不修改该参数时，或当共享默认值是故意的、有文档记录的缓存或哨兵值时，不要报告
+#### Mutable Default Arguments and Shared State
+- Mutable default arguments such as `def f(x=[])` or `def f(x={})`; the default is created once and shared across every call. Default to `None` and build the value inside the body
+- Class-level mutable attributes shared unintentionally across instances when a per-instance value was intended
+- Module-level mutable globals (lists, dicts, caches) mutated across requests or threads, retaining state in ways that surprise the caller
+- Closures that capture a loop variable by reference and all end up seeing its final value
+- Do not report when the function never mutates the argument, or when the shared default is a deliberate, documented cache or sentinel
 
-#### 边界和边缘情况处理
-- 假设输入非空但实际上为空：索引 `xs[0]`、`max()`/`min()`，或未先处理空 `list`、`str`、`dict` 或迭代器就进行切片
-- 索引、范围或切片上的差一错误和越界访问，尤其是在第一个/最后一个元素处
-- `None` 到达假设有值的代码，而上游调用或默认值可以合法地返回 `None`（在标记之前使用 `file_read` 确认数据源）
-- 使用 `==` 精确比较浮点数；使用 `math.isclose` 或显式容差，因为浮点结果并不精确
-- 整数/浮点数和除法假设：使用 `//` 导致意外截断，或除数为零时出现 `ZeroDivisionError`
-- 集合中包含代码假设为统一类型的异构或意外元素类型（例如，混合 `None`、数字和字符串）
-- 按键访问字典而不处理缺失键的情况（`d[k]` 与 `d.get(k)`），或假设键存在的集合/字典操作
-- 不要报告调用方或类型契约已经排除的边缘情况，或上游已验证边界后不可能出现的输入
+#### Boundary and Edge-Case Handling
+- Empty inputs assumed to be non-empty: indexing `xs[0]`, `max()`/`min()`, or slicing without first handling the empty `list`, `str`, `dict`, or iterator
+- Off-by-one and out-of-range access on indices, ranges, or slices, especially at the first/last element
+- `None` reaching code that assumes a value, when an upstream call or default can legitimately return `None` (confirm the data source with `file_read` before flagging)
+- Comparing floats for exact equality with `==`; use `math.isclose` or an explicit tolerance, since floating-point results are not exact
+- Integer/float and division assumptions: unintended truncation with `//`, or `ZeroDivisionError` when a divisor can be zero
+- Heterogeneous or unexpected element types in a collection that the code assumes are uniform (e.g., mixing `None`, numbers, and strings)
+- Dictionary access by key without handling the missing-key case (`d[k]` vs `d.get(k)`), or set/dict operations that assume a key is present
+- Do not report edge cases that a caller or type contract has already ruled out, or inputs that cannot occur given validated boundaries upstream
 
-#### 错误处理和异常
-- 裸 `except:` 吞掉所有异常，包括 `KeyboardInterrupt` 和 `SystemExit`；至少捕获 `except Exception`，并优先捕获你期望的特定异常类型
-- `except Exception` 仍然比所处理的故障范围更广；将其缩小到受保护调用实际引发的异常
-- 捕获异常后静默丢弃（`pass`）而不记录日志或重新抛出
-- 重新抛出时丢失原始回溯；优先使用 `raise NewError(...) from err` 以保留原因
-- 宽泛的 `try` 块包裹了远超实际可能失败的代码行，掩盖了错误来源
-- 使用 `assert` 对外部输入进行运行时验证——断言在 `python -O` 下会被剥离
+#### Error Handling and Exceptions
+- Bare `except:` swallows everything, including `KeyboardInterrupt` and `SystemExit`; catch `except Exception` at minimum, and prefer the specific exception types you expect
+- `except Exception` that is still broader than the failure being handled; narrow it to the exceptions actually raised by the guarded call
+- Exceptions caught and silently discarded (`pass`) without logging or re-raising
+- Original traceback lost when re-raising; prefer `raise NewError(...) from err` to preserve the cause
+- Broad `try` blocks that wrap far more than the line that can actually fail, hiding where the error originates
+- `assert` used for runtime validation of external input — assertions are stripped under `python -O`
 
-#### 身份和相等性比较
-- 使用 `is`/`is not` 与字符串、数字或元组等字面量进行比较；这依赖于实现特定的驻留机制而非值相等性——应使用 `==`（这是一个真正的正确性风险）
-- 使用 `==` 与 `True`/`False` 比较，其中真值但非 `True` 的值（例如 `1`、非空容器）会比较为不相等；优先使用简单的真值检查
-- 将 `is` 保留用于对单例和哨兵值的身份检查
-- 使用 `==`/`!=` 而非 `is`/`is not` 与 `None` 比较是风格偏好；报告为次要问题，而非阻塞性问题
+#### Identity and Equality Comparisons
+- Using `is`/`is not` to compare against literals such as strings, numbers, or tuples; this relies on implementation-specific interning rather than value equality — use `==` (a real correctness risk)
+- Comparing against `True`/`False` with `==`, where a truthy-but-not-`True` value (e.g. `1`, a non-empty container) would compare unequal; prefer a plain truthiness check
+- Reserve `is` for identity checks against singletons and sentinels
+- Comparing against `None` with `==`/`!=` rather than `is`/`is not` is a style preference; report as minor, not blocking
 
-#### 资源管理
-- 文件、套接字、锁或数据库连接未使用 `with` 语句打开，在提前返回或异常时存在泄漏风险
-- 有可用的上下文管理器但被绕过，转而手动使用 `open()`/`close()` 配对
-- 在 `try` 中获取的资源，其 `finally` 清理在错误路径上缺失或不完整
-- 迭代器或生成器持有资源的时间超过必要时间
-- 不要报告短生命周期脚本，或已由外部 `with` 或框架管理的生命周期所管理的句柄（在标记之前使用 `file_read` 确认周围作用域）
+#### Resource Management
+- Files, sockets, locks, or database connections opened without a `with` statement, risking leaks on early return or exception
+- Context managers available but bypassed in favor of manual `open()`/`close()` pairs
+- Resources acquired in a `try` whose `finally` cleanup is missing or incomplete on the error path
+- Iterators or generators holding resources open longer than necessary
+- Do not report short-lived scripts, or handles already managed by an enclosing `with` or framework-managed lifecycle (confirm the surrounding scope with `file_read` before flagging)
 
-#### 性能
-在标记之前确认数据规模以及代码是否在热路径上：
-- 在循环中使用 `+=` 构建字符串，而不是在列表中累积然后 `"".join(...)`，或使用 f-string
-- 对 `list` 进行重复成员测试，而 `set` 或 `dict` 可以将 O(n) 查找变为 O(1)
-- 构建完整列表，而生成器可以避免将所有内容保存在内存中
-- 在循环内重新计算迭代间不变的值（例如，编译正则表达式、热路径中的属性查找）
-- 将急切格式化的 f-string 传递给 `logging`（例如 `logging.info(f"...")`），而不是 `logging.info("%s", value)`，后者在级别被禁用时破坏了惰性格式化
+#### Performance
+Confirm data scale and that the code is on a hot path before flagging:
+- Building strings with `+=` in a loop instead of accumulating in a list and `"".join(...)`, or using an f-string
+- Repeated membership tests against a `list` where a `set` or `dict` would turn O(n) lookups into O(1)
+- Building a full list when a generator would avoid holding everything in memory
+- Recomputing inside a loop a value that is invariant across iterations (e.g., compiling a regex, attribute lookups in hot paths)
+- Passing an eagerly formatted f-string to `logging` (e.g., `logging.info(f"...")`) instead of `logging.info("%s", value)`, which defeats lazy formatting when the level is disabled
 
-#### 并发和异步
-仅在有多线程、多进程或异步调用证据时才标记并发问题（在报告之前确认调用上下文）：
-- 在 GIL 下使用 `threading` 并行化 CPU 密集型工作，而 `multiprocessing` 或进程池才是正确的工具（传统 CPython；自由线程构建除外）；I/O 密集型工作才是线程真正有帮助的情况
-- 在没有 `Lock` 的情况下对共享状态进行先检查后执行竞争，或假设非原子复合更新是原子的
-- 在 `async def` 内部进行阻塞调用（同步 I/O、`time.sleep`、`requests`、CPU 密集型工作），阻塞事件循环；使用异步等效操作或在执行器中运行它们
-- 创建了 `asyncio` 任务但从未等待，导致异常被吞掉，且工作可能在完成之前被垃圾回收
-- 跨线程或任务共享可变状态而没有同步或线程安全结构
+#### Concurrency and Async
+Only flag concurrency issues when there is evidence of multi-threaded, multi-process, or async invocation (confirm the call context before reporting):
+- CPU-bound work parallelized with `threading` under the GIL where `multiprocessing` or a process pool is the right tool (traditional CPython; free-threaded builds excepted); I/O-bound work is the case threads actually help
+- Check-then-act races on shared state without a `Lock`, or non-atomic compound updates assumed to be atomic
+- Blocking calls (synchronous I/O, `time.sleep`, `requests`, CPU-heavy work) inside `async def`, stalling the event loop; use the async equivalent or run them in an executor
+- `asyncio` tasks created and never awaited, so exceptions are swallowed and the work may be garbage-collected before it finishes
+- Shared mutable state across threads or tasks without synchronization or a thread-safe structure
 
-不要报告局部变量（每个线程都有自己的）、对共享数据的只读访问，或没有并发使用证据的代码。
+Do not report local variables (each thread has its own), read-only access to shared data, or code with no evidence of concurrent use.
 
-#### 安全敏感代码
-在标记之前验证数据源；确认输入实际上是攻击者控制的，而不是可信常量：
-- 对不受信任的输入使用 `eval`、`exec` 或 `compile`；这是任意代码执行
-- 使用 `shell=True` 的 `subprocess` 由未净化的输入构建；传递参数列表并避免使用 shell
-- 对不受信任的数据使用 `pickle`、`marshal` 或 `yaml.load`（不带 `SafeLoader`）；反序列化可以执行任意代码
-- 通过字符串拼接或 f-string 构建 SQL，而不是使用参数化查询
-- 将机密、令牌、密码或 PII 写入日志或提交到源代码中
-- 弱加密或错误使用加密（`hashlib.md5`/`sha1` 用于密码，`random` 用于安全令牌）；使用 `secrets` 和经验证的库
-- 未经验证就拼接不受信任的文件路径，允许路径遍历
+#### Security-Sensitive Code
+Validate the data source before flagging; confirm the input is actually attacker-controlled rather than a trusted constant:
+- `eval`, `exec`, or `compile` on untrusted input; this is arbitrary code execution
+- `subprocess` with `shell=True` built from unsanitized input; pass an argument list and avoid the shell
+- `pickle`, `marshal`, or `yaml.load` (without `SafeLoader`) on untrusted data; deserialization can execute arbitrary code
+- SQL built by string concatenation or f-strings instead of parameterized queries
+- Secrets, tokens, passwords, or PII written to logs or committed in source
+- Weak or misused cryptography (`hashlib.md5`/`sha1` for passwords, `random` for security tokens); use `secrets` and vetted libraries
+- Untrusted file paths joined without validation, allowing path traversal

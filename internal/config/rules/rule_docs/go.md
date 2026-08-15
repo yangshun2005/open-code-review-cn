@@ -1,69 +1,69 @@
-#### Go 代码审查原则
-> 宁缺毋滥：只报告变更代码及其可达上下文中可能真实存在的缺陷。误报会损害审查者的信誉。将正确性和安全性问题视为阻塞性问题；仅涉及风格的建议为非阻塞性。重点关注常规格式化和确定性工具未覆盖的语言特定风险。
+#### Go Review Principles
+> Favor precision over recall: report only defects that are likely real in the changed code and its reachable context. A false positive costs reviewer trust. Treat correctness and security findings as blocking; style-only suggestions are non-blocking. Focus on language-specific risks that ordinary formatting and deterministic tooling do not already cover.
 
-在报告非局部声明之前，请使用 `file_read` 和 `code_search` 来确定相关的调用点、所有权、同步机制和输入边界。不要仅凭函数名或包导入就推断并发调用、攻击者控制、资源所有权或错误契约。除非 diff 显示了这些工具无法表达的、用户可见的具体后果，否则不要重复报告 `go vet`、Staticcheck、`go test -race`、编译器或 `gofmt` 能够可靠确定的问题。
+Before reporting a non-local claim, use `file_read` and `code_search` to establish the relevant call sites, ownership, synchronization, and input boundaries. Do not infer concurrent invocation, attacker control, resource ownership, or an error contract solely from a function name or package import. Do not duplicate findings that `go vet`, Staticcheck, `go test -race`, the compiler, or `gofmt` can determine reliably unless the diff shows a concrete user-visible consequence those tools will not express.
 
-#### 错误、Panic 与 API 契约
-- 调用返回的错误被忽略、覆盖，或转换为隐藏失败操作的成功/默认值。仅当被忽略的失败是安全的，并且有文档说明或从上下文中显而易见时，刻意的最佳努力操作才是可接受的。
-- 错误包装丢失了原始原因（当调用者需要 `errors.Is`/`errors.As` 时使用 `fmt.Errorf("...: %v", err)`）、包装了 nil、返回误导性的哨兵错误，或在公共边界暴露内部/敏感细节。当需要保留错误身份时，优先使用 `%w`。
-- 在请求、工作线程、库或清理路径中使用 `panic`、`log.Fatal`、`os.Exit` 或 must 风格的辅助函数，而本可以返回可恢复的错误。不要标记不可能发生的内部不变量或已文档化的程序员契约。
-- 延迟清理覆盖了主要错误、丢弃了有意义的 `Close`/`Commit`/`Rollback` 错误，或在清理使结果无效后返回成功。
+#### Errors, Panics, and API Contracts
+- Errors returned from calls that are ignored, overwritten, or converted into success/default values that hide a failed operation. A deliberately best-effort operation is acceptable only when the ignored failure is safe and documented or evident from the context.
+- Error wrapping that loses the original cause (`fmt.Errorf("...: %v", err)` when callers need `errors.Is`/`errors.As`), wraps nil, returns a misleading sentinel, or exposes internal/sensitive details at a public boundary. Prefer `%w` when preserving identity is required.
+- `panic`, `log.Fatal`, `os.Exit`, or a must-style helper in request, worker, library, or cleanup paths where a recoverable error can be returned. Do not flag an impossible internal invariant or documented programmer contract.
+- Deferred cleanup that overwrites a primary error, drops a meaningful `Close`/`Commit`/`Rollback` error, or returns success after cleanup makes the result invalid.
 
-#### Nil、接口与值语义
-- 类型化的 nil 指针、映射、切片、函数、通道或错误存储在非 nil 接口中，随后被当作不存在处理。首先检查具体的赋值和所有接口检查。
-- 写入 nil 映射、无意中使用 nil 通道（会永久阻塞），或在输入或构造函数实际可能产生的路径上解引用 nil 指针。
-- 在首次使用后复制包含 `sync.Mutex`、`sync.RWMutex`、`sync.Once`、`sync.Pool`、`atomic` 状态或其他不可复制同步原语的值。仅当该值可能已被使用时，才标记通过值接收者、赋值、返回、追加、映射值或序列化进行的复制。
-- 值接收者或复制在调用者期望共享状态时仅静默地修改副本，尤其是对于持有映射、切片、指针、锁或原子状态的结构体。不要标记有意的不可变值对象。
-- 将 `sync.Once` 用于失败后必须重试的工作。`Once.Do` 即使其 `func()` panic 也认为其已完成；该闭包捕获的错误也不会导致后续的 `Do` 重试它。
+#### Nil, Interfaces, and Value Semantics
+- A typed nil pointer, map, slice, function, channel, or error stored in a non-nil interface and later treated as absent. Check the concrete assignment and all interface checks first.
+- Nil maps written to, nil channels used unintentionally (which block forever), or nil pointers dereferenced on paths inputs or constructors can actually produce.
+- Copying a value after first use when it contains `sync.Mutex`, `sync.RWMutex`, `sync.Once`, `sync.Pool`, `atomic` state, or another non-copyable synchronization primitive. Flag copies through value receivers, assignment, return, append, map values, or serialization only when the value can have been used first.
+- Value receivers or copies that silently mutate only a copy when callers expect shared state, especially for structs holding maps, slices, pointers, locks, or atomic state. Do not flag intentional immutable value objects.
+- `sync.Once` used for work that must retry after failure. `Once.Do` considers its `func()` complete even if it panics; an error captured by that closure also does not make a later `Do` retry it.
 
-#### 上下文、Goroutine 与取消
-- 使用 `context.Background()`/`TODO()` 或新上下文启动的请求范围工作，而本应继承调用者的截止时间、取消信号、值或追踪。独立的后台工作是有效的。
-- 将 `context.Context` 存储在结构体中或用自定义上下文接口替换，而本应将其作为第一个参数显式传递。仅在必需的外部接口固定了签名或所有权/生命周期明确无歧义时才允许。
-- `context.WithCancel`、`WithTimeout` 或 `WithDeadline` 的取消函数在派生上下文不再需要时未被调用，除非所有权转移和最终取消是显而易见的。
-- 在请求/工作线程路径上执行阻塞 I/O、等待、重试、select 或循环，但缺乏取消或截止时间，而依赖项可能停滞。首先确认该操作可能比其调用者存活更久。
-- Goroutine 可能比其所有者存活更久，因为它们永久等待通道、锁、I/O 操作或无界重试；缺乏关闭机制；或在需要时无法观察错误/完成状态。
-- 即发即弃的 Goroutine 捕获了请求本地的可变数据、在处理器返回后写入响应、在进程边界 panic 而没有恢复，或与清理操作竞争。不要要求加入独立的后台工作。
-- 在 goroutine/回调中捕获循环变量或可变外部变量，而闭包可能观察到后续的值。验证模块的 `go` 指令以及每次迭代是否创建新变量；Go 1.22 语言语义更改了 range 循环变量，而旧模块语义可能保留共享变量。
+#### Context, Goroutines, and Cancellation
+- Request-scoped work started with `context.Background()`/`TODO()` or a fresh context when it should inherit the caller's deadline, cancellation, values, or tracing. Independent background work is valid.
+- `context.Context` stored in a struct or replaced with a custom context interface when it should be passed explicitly as the first parameter. Allow it only where a required external interface fixes the signature or ownership/lifetime is unambiguous.
+- `context.WithCancel`, `WithTimeout`, or `WithDeadline` whose cancel function is not called once the derived context is no longer needed, unless ownership transfer and eventual cancellation are evident.
+- Blocking I/O, waits, retries, selects, or loops on a request/worker path that lack cancellation or deadline where the dependency can stall. Confirm the operation can outlive its caller first.
+- Goroutines that can outlive their owner because they wait forever on a channel, lock, I/O operation, or unbounded retry; lack shutdown; or have no way for errors/completion to be observed when that matters.
+- Fire-and-forget goroutines that capture request-local mutable data, write to a response after the handler returns, panic without recovery at a process boundary, or race with cleanup. Do not require joining independent background work.
+- Loop-variable or mutable outer-variable captures in goroutines/callbacks where a closure can observe a later value. Verify the module's `go` directive and whether a new variable is created per iteration; Go 1.22 language semantics changed range-loop variables while older-module semantics can retain the shared variable.
 
-#### 通道、锁与共享状态
-仅在存在证据表明状态可并发访问时才报告竞争或死锁；在非局部情况下检查周围的调用点。不要标记不可变数据、每 goroutine 局部变量或由所有权保证的同步。
+#### Channels, Locks, and Shared State
+Only report races or deadlocks with evidence that state is reachable concurrently; inspect surrounding call sites where that is not local. Do not flag immutable data, per-goroutine locals, or synchronization guaranteed by ownership.
 
-- 对映射、切片、指针、计数器、缓存或复合状态进行无同步的并发读/写；可能交错执行的检查后操作序列。
-- 在持有互斥锁/读写锁的情况下执行阻塞 I/O、通道操作、回调、网络/数据库调用或长时间 CPU 工作，而其他路径需要该锁才能推进。在声称死锁前先检查锁顺序。
-- 在修改受保护数据时使用 `RLock`；对受同级字段保护的字段进行无锁修改；或对同一状态混合使用原子和非原子访问。
-- 发送/接收可能无限期阻塞，因为对端可能停止、缓冲区可能填满，或未选择关闭/取消。不要标记有确证对端的同步交接。
-- 多个可能的通道关闭者、关闭已关闭通道的风险或双重关闭。首先确定发送者/所有者责任。
-- `select` 默认分支导致忙等待、丢弃必要工作或绕过取消；无退避/取消的无界重试。
-- WaitGroup 的 `Add` 与 `Wait` 竞争、缺少 `Done`、首次使用后复制，或计数器无法达到完成状态。
+- Unsynchronized concurrent reads/writes of maps, slices, pointers, counters, caches, or compound state; check-then-act sequences that can interleave.
+- Holding a mutex/RWMutex across blocking I/O, channel operations, callbacks, network/database calls, or long CPU work when another path needs the lock to progress. Check lock ordering before claiming deadlock.
+- `RLock` used while mutating protected data; unlocked mutation of a field whose peers protect it; or atomic and non-atomic access mixed for the same state.
+- Sends/receives that can block indefinitely because a peer may stop, a buffer may fill, or shutdown/cancellation is not selected. Do not flag a synchronous handoff with a proven peer.
+- Multiple possible channel closers, send-on-closed-channel risk, or double-close. Establish sender/owner responsibility first.
+- `select` defaults that busy-spin, drop required work, or bypass cancellation; unbounded retries without backoff/cancellation.
+- WaitGroups with `Add` racing with `Wait`, missing `Done`, copies after first use, or counters that cannot reach completion.
 
-#### 定时器、Ticker 与资源生命周期
-- 定时器/ticker 由其所有者保留并在工作结束后继续运行，因此可能触发、计时、保留可达状态或使相关工作保持存活。不要仅将缺少 `Stop` 报告为 GC 泄漏：Go 1.23+ 可以回收未引用的未停止定时器/ticker；旧语义和 `GODEBUG=asynctimerchan=1` 有所不同。
-- 在重复/select 循环中使用 `time.After` 仅在存在成本证据时报告：Go 1.23 之前的语义存在大量未过期定时器、高频分配路径或保留的定时器所有者。在 Go 1.23+ 上不要单独将其称为泄漏。
-- 定时器重置/停止代码假设跨 Go 版本行为一致。Go 1.23+ 上的通道定时器在 `Reset`/`Stop` 后消除陈旧值；旧语义需要停止并排空协调。`AfterFunc` 的重置/停止不会等待已启动的回调，因此除非同步，否则回调可能重叠。
-- `http.Response.Body`、`sql.Rows`、文件、套接字、压缩读写器、事务、锁或其他可关闭资源在获取后未在所有可达路径上关闭。不要标记已移交给拥有关闭权的调用者/框架的资源。
-- 循环内的 `defer`，其所在函数可能运行多次迭代或无限期运行，尤其是当它延迟关闭文件、响应体、行、锁或事务直到函数返回时。不要标记小型静态有界循环或每次迭代返回的辅助函数。
-- `sql.Rows` 迭代在循环后省略 `rows.Err()`，或当迭代可能提前停止时未关闭 rows。
-- 出站 HTTP 调用缺少主体清理、请求上下文或超时，可能导致服务器路径挂起；`Begin` 后存在返回路径的事务缺少回滚/提交。
+#### Timers, Tickers, and Resource Lifecycle
+- A timer/ticker retained by its owner and left running after work ends, so it can fire, tick, retain reachable state, or keep associated work alive. Do not report missing `Stop` solely as a GC leak: Go 1.23+ can recover unreferenced unstopped timers/tickers; older semantics and `GODEBUG=asynctimerchan=1` differ.
+- `time.After` in a repeated/select loop only with evidence of cost: pre-Go-1.23 semantics with many unexpired timers, a high-frequency allocation path, or retained timer owners. Do not call it a leak by itself on Go 1.23+.
+- Timer reset/stop code that assumes one behavior across Go versions. Channel timers on Go 1.23+ eliminate stale values after `Reset`/`Stop`; older semantics require stop-and-drain coordination. `AfterFunc` reset/stop does not wait for an already-started callback, so callbacks can overlap unless synchronized.
+- `http.Response.Body`, `sql.Rows`, files, sockets, compression readers/writers, transactions, locks, or other closable resources not closed on all reachable paths after acquisition. Do not flag resources handed to a caller/framework that owns closure.
+- `defer` inside a loop whose surrounding function can run many iterations or indefinitely, especially when it delays closing files, response bodies, rows, locks, or transactions until function return. Do not flag small statically bounded loops or helpers returning per iteration.
+- `sql.Rows` iteration that omits `rows.Err()` after the loop, or rows not closed when iteration can stop early.
+- Outbound HTTP calls missing body cleanup, request context, or timeout on a server path that can hang; transactions with a return path after `Begin` lacking rollback/commit.
 
-#### 集合、切片、字节与数值边界
-- 返回、缓存或传递切片/映射/字节缓冲区，其底层存储随后被重用/修改，从而改变另一个所有者观察到的数据。确认所有权；零拷贝 API 可能是有意为之。
-- 对别名调用者/共享底层存储的切片执行 `append`，导致修改逃逸；保留巨大缓冲区的微小子切片，而保留的内存很重要。
-- 可达的索引、切片、长度算术或容量假设在空/边界输入上超出范围。
-- 整数转换、收窄、有符号/无符号比较、大小计算、分配或偏移算术可能溢出、截断、回绕或将负输入变为巨大尺寸。考虑依赖于架构的 `int` 宽度。
-- 并发重用可变缓冲区、编码器、解码器、扫描器或包/全局状态，或在返回的输出依赖其生命周期后重用。
+#### Collections, Slices, Bytes, and Numeric Boundaries
+- Returning, caching, or passing a slice/map/byte buffer whose backing storage is later reused/mutated, changing data observed by another owner. Confirm ownership; zero-copy APIs can be intentional.
+- `append` to a slice that aliases caller/shared backing storage where mutation escapes; retaining a tiny subslice of a huge buffer where retained memory matters.
+- Reachable indexing, slicing, length arithmetic, or capacity assumptions that exceed bounds on empty/boundary input.
+- Integer conversion, narrowing, signed/unsigned comparison, size calculation, allocation, or offset arithmetic that can overflow, truncate, wrap, or turn negative input into huge size. Consider architecture-dependent `int` width.
+- Reusing mutable buffers, encoders, decoders, scanners, or package/global state concurrently or after returned output depends on their lifetime.
 
-#### 安全敏感边界
-在报告前确认攻击者控制或信任边界。优先提供具体的利用路径和修复方案。
+#### Security-Sensitive Boundaries
+Confirm attacker control or a trust boundary before reporting. Prefer a concrete exploit path and remediation.
 
-- 从未受信任的输入组装 SQL、shell 命令、URL、路径、头、模板、正则表达式或序列化数据，而未进行适当的参数化、验证、转义、白名单或 scheme/host/path 限制。`os/exec` 参数数组比 shell 更安全，但参数可能仍需验证。
-- 路径遍历、符号链接跟随、不安全的归档提取、不安全的临时文件，或暴露/覆盖文件的权限/所有权假设。
-- 将 `html/template` 替换为 `text/template` 用于 HTML，从不受信任的内容构造受信任的模板类型，或上下文不适当的转义。默认不要标记用于非 HTML 输出的 `text/template`。
-- 通过出站 URL 进行 SSRF 或凭据泄漏：不受信任的目标、缺少必需的白名单、重定向到内部服务，或跨主机转发敏感头。
-- 记录、在错误中返回或嵌入源代码/配置中的秘密、凭据、令牌、授权头、私钥或敏感个人数据。
-- 将 `math/rand` 或 `math/rand/v2` 用于安全敏感的密钥、令牌、会话 ID、重置代码、随机数或盐；需要使用 `crypto/rand` 或经过审查的加密构造。不要标记模拟、采样、负载均衡或测试。
-- 使用 `reflect`、`unsafe`、cgo、不安全的指针转换、手动内存/布局假设或自定义加密，而缺乏狭窄的文档化不变量和必需的边界/生命周期检查。不要单独标记普通的反射。
+- SQL, shell commands, URLs, paths, headers, templates, regexes, or serialized data assembled from untrusted input without appropriate parameterization, validation, escaping, allowlisting, or scheme/host/path restrictions. `os/exec` argument arrays are safer than a shell but arguments may still need validation.
+- Path traversal, symlink-following, unsafe archive extraction, insecure temp files, or permission/ownership assumptions that expose or overwrite files.
+- `html/template` replaced with `text/template` for HTML, trusted-template types constructed from untrusted content, or context-inappropriate escaping. Do not flag `text/template` for non-HTML output by default.
+- SSRF or credential leakage through outbound URLs: untrusted destinations, absent required allowlists, redirects to internal services, or sensitive headers forwarded cross-host.
+- Secrets, credentials, tokens, authorization headers, private keys, or sensitive personal data logged, returned in errors, or embedded in source/configuration.
+- `math/rand` or `math/rand/v2` used for security-sensitive keys, tokens, session IDs, reset codes, nonces, or salts; require `crypto/rand` or a vetted cryptographic construction. Do not flag simulation, sampling, load-balancing, or tests.
+- `reflect`, `unsafe`, cgo, unsafe pointer conversion, manual memory/layout assumptions, or custom cryptography without narrow documented invariants and required bounds/lifetime checks. Do not flag ordinary reflection alone.
 
-#### 测试与审查范围
-- 默认审查生产环境的 Go 变更。`*_test.go` 文件仍被 OCR 的默认路径过滤器排除，仅在用户配置明确包含时才进行审查。
-- 仅为具体的变更正确性、并发、错误或边界失败模式建议测试。优先确定性测试；不要要求基于时序的、不稳定的竞争测试。
-- 不要将 `gofmt`、`go vet`、Staticcheck、linters 或编译器已强制执行的格式化、导入顺序、命名偏好、简化或建议作为阻塞性发现。
+#### Tests and Review Scope
+- Review production Go changes by default. `*_test.go` files remain excluded by OCR's default path filter and are reviewed only when user configuration explicitly includes them.
+- Suggest tests only for concrete changed correctness, concurrency, error, or boundary failure modes. Favor deterministic tests; do not demand flaky timing-based race tests.
+- Do not make formatting, import ordering, naming preferences, simplification, or advice already enforced by `gofmt`, `go vet`, Staticcheck, linters, or the compiler into blocking findings.

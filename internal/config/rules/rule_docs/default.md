@@ -1,22 +1,22 @@
-#### 正确性
-逻辑是否正确？是否存在缺失的边界条件？
-异常是否得到妥善处理？
-在并发场景下是否线程安全？
+#### Correctness
+Is the logic correct? Are there missing boundary conditions?
+Are exceptions handled properly?
+Is it thread-safe in concurrent scenarios?
 
-#### 安全性
-是否存在 SQL 注入或 XSS 等安全漏洞？
-敏感信息是否得到正确处理？
-权限验证是否完整？
+#### Security
+Are there security vulnerabilities such as SQL injection or XSS?
+Is sensitive information handled correctly?
+Is permission validation complete?
 
-#### 性能
-是否存在明显的性能问题（例如 N+1 查询、不必要的循环）？
-资源是否得到正确释放？
+#### Performance
+Are there obvious performance issues (e.g., N+1 queries, unnecessary loops)?
+Are resources properly released?
 
-#### 可维护性
-代码是否清晰易懂？
-命名是否准确表达意图？
-是否遵循项目现有的代码风格和架构模式？
+#### Maintainability
+Is the code clear and easy to understand?
+Do names accurately express intent?
+Does it follow the project’s existing code style and architecture patterns?
 
-#### 测试覆盖率
-关键逻辑路径是否有相应的测试用例？
-测试用例是否覆盖边界条件？
+#### Test Coverage
+Do critical logic paths have corresponding test cases?
+Do test cases cover boundary conditions?

@@ -1,29 +1,29 @@
-> 宁缺毋滥：仅在确信存在真实缺陷时才提出问题，当上下文不明确时保持沉默——一次误报比遗漏一个小问题更损害审查者的信任。将安全性和正确性问题视为阻塞性问题，将风格或惯用法建议视为非阻塞性问题。仅审查所审查 HCL 中可观察到的内容；不要推断运行时提供程序行为、云账户配置或存储在此文件之外的状态。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking. Review only what is observable in the HCL under review; do not infer runtime provider behavior, cloud account configuration, or state stored outside this file.
 
-#### 明显的拼写错误
-- 资源/模块/变量/输出名称在声明位置处的拼写错误；不要在引用位置报告拼写错误
-- `description` 字段中的拼写错误影响模块公共接口的可读性
+#### Obvious Typos or Spelling Errors
+- Spelling errors in resource/module/variable/output names at their declaration sites; do not report spelling errors at reference sites
+- Typos in `description` fields that affect readability of the module's public interface
 
-#### 硬编码的机密和凭据
-- 直接赋值给资源参数或 `variable`/`locals` 默认值的字面密码、API 密钥、访问密钥/秘密密钥对、私钥或连接字符串，而非来自机密管理器、`sensitive` 输入或环境支持的数据源
-- `.tfvars` 文件（此文件类型是真实输入值的常规存放位置，且经常意外提交包含生产机密）分配了看起来真实的机密值，而非占位符
-- 明确包含凭据的 `variable` 块（名称/描述暗示密码、令牌、密钥或机密）缺少 `sensitive = true`
+#### Hardcoded Secrets and Credentials
+- A literal password, API key, access key/secret pair, private key, or connection string assigned directly to a resource argument or a `variable`/`locals` default instead of coming from a secret manager, `sensitive` input, or environment-backed data source
+- A `.tfvars` file (this file type is the conventional home for real input values, and is frequently committed by accident with production secrets in it) assigning a real-looking secret value rather than a placeholder
+- A `variable` block that clearly holds a credential (name/description implies password, token, key, or secret) missing `sensitive = true`
 
-#### 过度宽松的访问权限
-- 安全组/防火墙/网络 ACL 规则，在敏感端口（SSH/22、RDP/3389、数据库端口）或所有端口上具有不受限制的来源（`0.0.0.0/0`、`::/0` 或 `"*"`）
-- IAM 策略、角色或资源策略授予通配符操作（`"Action": "*"`）或通配符资源（`"Resource": "*"`），而非限定范围的权限集
-- 在存储资源（存储桶、Blob 容器）上启用了公共读写 ACL 或公共访问设置，但差异中未说明明确的公共内容用途
+#### Overly Permissive Access
+- A security group / firewall / network ACL rule with an unrestricted source (`0.0.0.0/0`, `::/0`, or `"*"`) on a sensitive port (SSH/22, RDP/3389, database ports) or on all ports
+- An IAM policy, role, or resource policy granting a wildcard action (`"Action": "*"`) or wildcard resource (`"Resource": "*"`) instead of a scoped permission set
+- Public read/write ACLs or public access settings enabled on a storage resource (bucket, blob container) that has no clear public-content purpose stated in the diff
 
-#### 状态和生命周期
-- 差异中包含 `terraform.tfstate` 或 `*.tfstate.backup` 文件——状态文件可能以明文形式包含资源属性和机密，绝不应提交
-- 在看起来有状态/关键性的资源（数据库、持久卷、KMS 密钥）上移除或削弱 `lifecycle { prevent_destroy = true }` 块，且差异中无解释
-- 新创建的有状态资源（数据库、存储桶、KMS 密钥）没有任何 `lifecycle` 保护，而差异中同类兄弟资源有保护——这是一个值得标记的不一致问题，而非绝对规则
+#### State and Lifecycle
+- A `terraform.tfstate` or `*.tfstate.backup` file included in the diff — state files can contain resource attributes and secrets in plaintext and should never be committed
+- Removing or weakening a `lifecycle { prevent_destroy = true }` block on a resource that looks stateful/critical (database, persistent volume, KMS key) without an explanation in the diff
+- A stateful resource (database, storage bucket, KMS key) newly created without any `lifecycle` protection, when sibling resources of the same kind in the diff do have one — an inconsistency worth flagging, not an absolute rule
 
-#### 版本控制和可复现性
-- `required_providers`/模块 `source` 版本约束完全无界（例如完全没有版本参数，或 `>= 0.0.0`），而同一文件中的兄弟条目固定了版本——不一致，并非普遍错误，因为某些根模块有意浮动版本
-- 不要标记明显有意的宽泛约束（例如 `~>`、文档化的范围），从周围代码可清晰看出其意图
+#### Versioning and Reproducibility
+- A `required_providers`/module `source` version constraint left fully unbounded (e.g. no version argument at all, or `>= 0.0.0`) where sibling entries in the same file pin a version — inconsistent, not universally wrong, since some root modules intentionally float
+- Do not flag a deliberately wide constraint (e.g. `~>`, a documented range) that is clearly intentional from the surrounding code
 
-#### 风格和结构
-- 同一模块中重复的资源/数据源标签（如果其他工具未捕获，会导致 `terraform validate` 失败）
-- 声明了变量但从未在差异中的模块内引用，或引用了变量但未在差异范围内声明
-- 不要标记 `terraform fmt` 会静默修复的格式/空白问题——专注于结构和语义问题
+#### Style and Structure
+- Duplicate resource/data-source labels within the same module (would fail `terraform validate`, if not already caught by other tooling)
+- Variables declared but never referenced anywhere in the diff's module, or referenced variables never declared in the diff's scope
+- Do not flag formatting/whitespace that `terraform fmt` would silently fix — focus on structural and semantic issues

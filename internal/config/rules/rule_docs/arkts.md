@@ -1,55 +1,55 @@
-#### 明显的拼写错误或拼写错误
-- 组件名、变量名或函数名中的拼写错误
-- 日志或错误消息中影响可读性的拼写错误
+#### Obvious Typos or Spelling Errors
+- Spelling errors in component names, variable names, or function names
+- Spelling errors in log or error messages that affect readability
 
-#### 死代码
-- 永远不会执行的代码块（例如，条件始终为假的分支、return 语句之后的代码）
-- 已声明但从未被读取或引用的变量
-- 大块被注释掉的代码（没有明显的保留意图）
+#### Dead Code
+- Code blocks that will never be executed (e.g., branches where the condition is always false, code after a return statement)
+- Variables that are declared but never read or referenced
+- Large blocks of commented-out code (with no apparent intent to retain)
 
-#### 状态装饰器使用
-- 使用 `@State` 装饰的数组/对象在通过 push/属性变更修改时不会触发 UI 刷新；必须替换引用
-- 验证在给定场景下 `@Prop`（单向）与 `@Link`（双向）的正确使用
-- 嵌套对象状态更新必须使用 `@Observed` + `@ObjectLink`
-- 超过 3 层的 Props 透传应改用 `@Provide/@Consume`
-- `@StorageLink/@StorageProp` 应仅用于真正的全局状态；避免过度使用
+#### State Decorator Usage
+- Arrays/objects decorated with `@State` will not trigger UI refresh when modified via push/property changes; references must be replaced
+- Verify correct usage of `@Prop` (one-way) vs `@Link` (two-way) for the given scenario
+- Nested object state updates must use `@Observed` + `@ObjectLink`
+- Props drilling beyond 3 levels should use `@Provide/@Consume` instead
+- `@StorageLink/@StorageProp` should only be used for truly global state; avoid overuse
 
-#### 组件生命周期
-- 在 `aboutToAppear` 中创建的定时器和监听器必须在 `aboutToDisappear` 中释放
-- 页面级逻辑应放在 `onPageShow/onPageHide` 中，而不是组件生命周期钩子中
-- 避免在生命周期钩子中执行阻塞 UI 线程的耗时同步操作
+#### Component Lifecycle
+- Timers and listeners created in `aboutToAppear` must be released in `aboutToDisappear`
+- Page-level logic should be placed in `onPageShow/onPageHide` rather than component lifecycle hooks
+- Avoid executing time-consuming synchronous operations in lifecycle hooks that block the UI thread
 
-#### ArkUI 声明式语法
-- 禁止在 `build` 方法中产生副作用（网络请求、定时器、日志记录）
-- `ForEach` / `LazyForEach` 必须提供唯一且稳定的键生成器函数
-- 使用 `if/else` 进行条件渲染，而非 `switch`
-- 禁止在 `build` 方法之外直接操作组件实例
+#### ArkUI Declarative Syntax
+- Side effects (network requests, timers, logging) are prohibited in the `build` method
+- `ForEach` / `LazyForEach` must provide a unique and stable key generator function
+- Use `if/else` for conditional rendering, not `switch`
+- Direct manipulation of component instances outside the `build` method is prohibited
 
-#### 性能优化
-- 大型列表（超过 20 项）必须使用 `LazyForEach` 而非 `ForEach`
-- 禁止在 `build` 方法中创建新对象、闭包或调用返回样式的函数，因为会导致不必要的子组件重建
-- 复杂计算结果应通过 `@Watch` 缓存，避免每次渲染时重复计算
-- 图片资源应采用适当的缓存策略，避免重复加载
+#### Performance Optimization
+- Large lists (>20 items) must use `LazyForEach` instead of `ForEach`
+- Creating new objects, closures, or calling functions that return styles in the `build` method is prohibited, as it causes unnecessary child component rebuilds
+- Complex computation results should be cached via `@Watch` to avoid redundant calculations on each render
+- Image resources should have proper caching strategies to avoid repeated loading
 
-#### 资源访问规范
-- 禁止硬编码字符串；使用 `$r('app.string.key')` 以支持国际化
-- 图片必须使用 `$r('app.media.icon')` 或 `$rawfile('path')`；禁止硬编码路径
-- 颜色/尺寸应使用资源引用，如 `$r('app.color.primary')`，以支持主题切换
+#### Resource Access Standards
+- String hardcoding is prohibited; use `$r('app.string.key')` to support internationalization
+- Images must use `$r('app.media.icon')` or `$rawfile('path')`; hardcoded paths are prohibited
+- Colors/dimensions should use resource references like `$r('app.color.primary')` to support theme switching
 
-#### 组件通信
-- 父→子：使用 `@Prop`/`@Link`；子→父：使用回调函数 `onEvent` 模式
-- 跨组件通信：使用 `@Provide/@Consume`；全局状态：使用 `AppStorage`
-- 避免通过 `AppStorage` 传递局部组件状态
+#### Component Communication
+- Parent→Child: use `@Prop`/`@Link`; Child→Parent: use callback function `onEvent` pattern
+- Cross-component communication: use `@Provide/@Consume`; global state: use `AppStorage`
+- Avoid passing local component state through `AppStorage`
 
-#### 通用 TypeScript 规范
-- 禁止使用 `any` 类型；如果不可避免，需要添加注释说明原因
-- 禁止使用 `var`；使用 `let` 或 `const`
-- 禁止使用 `==` 和 `!=`；使用 `===` 和 `!==`
-- 异步函数必须包含 try-catch 错误处理，并提供用户友好的错误消息
-- 优先使用 async/await；禁止回调地狱；独立的异步操作使用 `Promise.all`
-- 空值检查：访问值或解构时执行空值检查，以避免空指针异常
+#### General TypeScript Standards
+- Using `any` type is prohibited; if unavoidable, a comment explaining the reason is required
+- Using `var` is prohibited; use `let` or `const`
+- Using `==` and `!=` is prohibited; use `===` and `!==`
+- Async functions must include try-catch error handling with user-friendly error messages
+- Prefer async/await; callback hell is prohibited; use `Promise.all` for independent async operations
+- Null checks: perform null checks when accessing values or destructuring to avoid null pointer exceptions
 
-#### 代码安全检查
-- 必须验证用户输入（长度、格式、范围）；禁止直接拼接 SQL 或命令字符串
-- 敏感信息（密钥、密码、令牌）不得记录日志或上传
-- 网络请求必须使用 HTTPS 并验证证书
+#### Code Security Checks
+- User input must be validated (length, format, range); direct concatenation into SQL or command strings is prohibited
+- Sensitive information (keys, passwords, tokens) must not be logged or uploaded
+- Network requests must use HTTPS with certificate verification

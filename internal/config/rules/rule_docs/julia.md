@@ -1,48 +1,48 @@
-> 优先精确而非召回：仅在确信是真实缺陷时才提出问题，当周围上下文不明确时保持沉默——一次误报比遗漏一个小问题更消耗审查者的信任。将安全性和正确性问题视为阻塞性问题，将风格或惯用法建议视为非阻塞性问题。仅审查当前代码中可观察到的内容；不要推断此文件之外定义的方法或宏的行为。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking. Review only what is observable in the code under review; do not infer behavior of methods or macros defined outside this file.
 
-#### 明显的拼写错误
-- 函数名、结构体/类型名、字段名、模块名或常量名在声明处的拼写错误；不要在调用处报告拼写错误
-- 日志消息、`@error`/`@warn` 文本、异常消息、文档字符串或其他影响可读性的公共诊断信息中的拼写错误
+#### Obvious Typos or Spelling Errors
+- Spelling errors in function names, struct/type names, field names, module names, or constant names at their declaration sites; do not report spelling errors at call sites
+- Typos in log messages, `@error`/`@warn` text, exception messages, docstrings, or other public diagnostics that affect readability
 
-#### 类型稳定性
-- 返回类型依赖于运行时值且编译器无法推断的函数（类型不稳定函数），会强制产生装箱的 `Any` 结果并降低 JIT 效率
-- 使用抽象或非具体类型声明的结构体字段（例如 `field::Real`、`field::AbstractArray` 或默认为 `Any` 的无类型字段）；优先使用具体类型或类型参数，以便高效存储实例
-- 当已知具体元素类型时，仍创建为 `[]`、`Vector{Any}` 或 `Dict()` 且未指定元素类型的容器
-- 累加器或循环变量的类型在迭代之间发生变化（例如初始化 `x = 0` 后又赋值为 `Float64`），这会扩大推断类型
+#### Type Stability
+- Functions whose return type depends on a runtime value in a way the compiler cannot infer (type-unstable functions), forcing boxed `Any` results and defeating the JIT
+- Struct fields declared with abstract or non-concrete types (e.g. `field::Real`, `field::AbstractArray`, or untyped fields defaulting to `Any`); prefer concrete types or type parameters so instances are stored efficiently
+- Containers created as `[]`, `Vector{Any}`, or `Dict()` without element types when a concrete element type is known
+- Accumulator or loop variables whose type changes across iterations (e.g. initializing `x = 0` then assigning a `Float64`), which widens the inferred type
 
-#### 多重分派与方法定义
-- 方法签名类型为 `::Any`（或无类型）时比预期更宽泛，会静默捕获无关的参数类型，造成歧义或错误的方法选择
-- 方法歧义：两个方法对某个参数元组具有相同的特异性，导致调用报错或结果不可预测
-- 类型盗用：定义或扩展方法时，函数和所有参数类型均不属于当前模块，这会改变无关代码的行为
-- 不一致地重载 `Base` 函数（`==`、`hash`、`show`、`length`、`iterate`）——例如定义了 `==` 却没有匹配的 `hash`
+#### Multiple Dispatch and Method Definitions
+- Method signatures typed as `::Any` (or untyped) that are broader than intended and silently capture unrelated argument types, creating ambiguity or wrong-method selection
+- Method ambiguities: two methods equally specific for some argument tuple, so a call errors or resolves unpredictably
+- Type piracy: defining or extending a method where neither the function nor any of the argument types is owned by this module, which can change behavior for unrelated code
+- Overloading `Base` functions (`==`, `hash`, `show`, `length`, `iterate`) inconsistently — e.g. defining `==` without a matching `hash`
 
-#### 边界与索引安全
-- 对索引无法证明在边界内的循环使用 `@inbounds` 或 `@simd`，这会将越界访问变成未定义行为，而不是受检查的错误
-- 基于 1 的索引错误：差一错误、假设基于 0 的访问，或硬编码 `1:length(x)`，而 `eachindex(x)`（或 `firstindex`/`lastindex`）对于任意或偏移数组才是正确的
-- 假设数组的轴原点可能不从索引 1 开始
+#### Bounds and Indexing Safety
+- `@inbounds` or `@simd` applied to a loop whose indices are not provably within bounds, which turns an out-of-bounds access into undefined behavior instead of a checked error
+- 1-based indexing mistakes: off-by-one errors, assuming 0-based access, or hardcoding `1:length(x)` where `eachindex(x)` (or `firstindex`/`lastindex`) is correct for arbitrary or offset arrays
+- Assuming a specific axis origin for arrays that may not start at index 1
 
-#### Missing、Nothing 与错误处理
-- 混淆 `nothing`（不存在）、`missing`（未知数据，会在比较中传播）和 `NaN`；使用 `x == nothing` 或 `x == missing` 等比较，而不是 `isnothing(x)` / `ismissing(x)` / `===`
-- 函数对同一失败模式有时 `throw` 有时 `return nothing`，迫使调用者同时处理两种情况
-- 依赖 `@assert` 进行输入验证或安全检查：断言可能被禁用，不能用于保护关键正确性的不变量；应使用带类型异常的显式 `throw` 代替
-- 使用空的 `catch` 块吞掉异常，或在没有上下文的情况下重新抛出；宽泛的 `catch` 会隐藏真实错误
+#### Missing, Nothing, and Error Handling
+- Conflating `nothing` (absence), `missing` (unknown data, propagates through comparisons), and `NaN`; comparisons like `x == nothing` or `x == missing` instead of `isnothing(x)` / `ismissing(x)` / `===`
+- Functions that sometimes `throw` and sometimes `return nothing` for the same failure mode, forcing callers to handle both
+- Relying on `@assert` for input validation or security checks: assertions may be disabled and must not guard correctness-critical invariants; use explicit `throw` with a typed exception instead
+- Swallowing exceptions with an empty `catch` block or rethrowing without context; broad `catch` that hides real errors
 
-#### 并发与共享状态
-- 在 `Threads.@threads`、`Threads.@spawn` 或 `@async` 任务中更新共享可变状态时存在数据竞争，且没有锁、原子操作或每任务累加
-- 从多个任务并发地修改非线程安全的全局变量或共享集合（`push!`、`setindex!`）
-- 假设 `@async` 提供并行性：它会在当前线程上调度一个协作任务，因此 CPU 密集型工作需要使用 `Threads.@spawn` 代替
-- 在循环中生成的任务捕获并修改在循环*外部*声明的变量，导致所有任务共享同一个绑定
-- 跨线程非可重入地使用共享的 `Random` RNG，产生相关或竞争的结果
+#### Concurrency and Shared State
+- Data races on shared mutable state updated from `Threads.@threads`, `Threads.@spawn`, or `@async` tasks without a lock, atomic, or per-task accumulation
+- Mutating non-thread-safe globals or shared collections (`push!`, `setindex!`) concurrently from multiple tasks
+- Assuming `@async` provides parallelism: it schedules a cooperative task on the current thread, so CPU-bound work needs `Threads.@spawn` instead
+- Tasks spawned in a loop that capture and mutate a variable declared *outside* the loop, so every task shares one binding
+- Non-reentrant use of a shared `Random` RNG across threads, giving correlated or racy results
 
-#### 性能反模式
-- 在热函数中读取无类型、非 `const` 的全局变量，编译器无法对其进行特化；应使用 `const` 注解或作为参数传递
-- 性能敏感结构体中的抽象字段类型或 `Any` 容器（参见类型稳定性）
-- 热循环中不必要的分配：重复构建数组/`String`、使用会产生拷贝的切片（而 `@view` 就足够）、或将大型集合展开到调用中
-- 在已知最终大小时，仍逐元素增长数组而不使用 `sizehint!`
+#### Performance Anti-Patterns
+- Untyped, non-const global variables read inside hot functions, which the compiler cannot specialize on; annotate with `const` or pass as arguments
+- Abstract field types or `Any` containers in performance-sensitive structs (see Type Stability)
+- Unnecessary allocations in hot loops: repeated array/`String` construction, slicing that copies where a `@view` would suffice, or splatting large collections into calls
+- Growing arrays element-by-element without `sizehint!` when the final size is known
 
-#### 安全敏感代码
-- 对不受信任或外部派生的输入使用 `eval`、`Meta.parse`、`include_string` 或 `@eval`（代码注入）
-- 将不受信任的输入插值到显式 shell 调用中，如 `sh -c` 或 `bash -c`（命令注入）；注意，普通的反引号命令会将其插值参数直接传递给进程而不经过 shell，因此只有在故意调用 shell 时才会产生风险
-- 使用 `ccall`、`unsafe_load`/`unsafe_store!`、`unsafe_wrap`、`pointer` 或 `unsafe_string` 时未验证底层内存的长度、对齐、生命周期和空值性
-- 通过未经检查的字符串拼接/插值外部输入来构建 SQL 或文件路径
-- 记录机密信息、令牌、凭据或个人可识别信息
+#### Security-Sensitive Code
+- `eval`, `Meta.parse`, `include_string`, or `@eval` applied to untrusted or externally derived input (code injection)
+- Untrusted input interpolated into an explicit shell invocation such as `sh -c` or `bash -c` (command injection); note that a plain backtick command passes its interpolated arguments straight to the process without a shell, so the risk arises only when a shell is invoked deliberately
+- `ccall`, `unsafe_load`/`unsafe_store!`, `unsafe_wrap`, `pointer`, or `unsafe_string` used without validating length, alignment, lifetime, and null-ness of the underlying memory
+- Building SQL or file paths through unchecked string concatenation/interpolation of external input
+- Logging secrets, tokens, credentials, or personally identifiable information

@@ -1,29 +1,29 @@
-> 宁缺毋滥：仅在确信存在真实缺陷时才提出问题，当上下文不明确时保持沉默——一次误报比遗漏一个小问题更损害审阅者的信任。将结构性错误和占位符不匹配视为阻塞性问题，将风格建议视为非阻塞性问题。在模板（.pot）文件中，每个 `msgstr` 都应为空；不要将空的 `msgstr` 条目报告为缺失翻译。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat structural errors and placeholder mismatches as blocking, and style suggestions as non-blocking. In a template (.pot) file every `msgstr` is expected to be empty; do not report empty `msgstr` entries as missing translations.
 
-#### 头部完整性
-- 缺失或格式错误的 `Content-Type` 头部，或字符集与文件实际编码不匹配
-- `Plural-Forms` 头部包含语法无效的 `nplurals`/`plural` 表达式，或无法解析为 C 风格三元表达式
-- 不要报告缺失的可选元数据字段（例如，`Project-Id-Version`、`Report-Msgid-Bugs-To`）
+#### Header Integrity
+- Missing or malformed `Content-Type` header, or a charset that does not match the file's actual encoding
+- `Plural-Forms` header with a syntactically invalid `nplurals`/`plural` expression, or one that does not parse as a C-style ternary expression
+- Do not report missing optional metadata fields (e.g., `Project-Id-Version`, `Report-Msgid-Bugs-To`)
 
-#### 格式与结构
-- `msgid`/`msgid_plural` 字符串中存在未配对或未转义的引号，导致条目损坏
-- 多行续行字符串拼接错误（片段之间缺少尾随空格/换行，从而改变最终文本）
-- 孤立的 `msgid_plural` 或 `msgstr`，前面没有对应的 `msgid`
-- 文件内重复的 `msgid` 定义相互冲突（不同的 `msgctxt`、注释或占位符）
-- 模板条目中存在非空的 `msgstr`，这通常意味着翻译被意外提交到模板中
+#### Format and Structure
+- Unbalanced or unescaped quotes in `msgid`/`msgid_plural` strings, breaking the entry
+- Multi-line continuation strings concatenated incorrectly (missing trailing space/newline between fragments that changes the resulting text)
+- Orphaned `msgid_plural` or `msgstr` without a preceding `msgid`
+- Duplicate `msgid` definitions within the file that conflict with each other (different `msgctxt`, comments, or placeholders)
+- A non-empty `msgstr` in a template entry, which usually means a translation was accidentally committed into the template
 
-#### 占位符一致性
-- `msgid` 中存在格式占位符（`%s`、`%d`、`%.2f`、`%(name)s`），但在 `msgid_plural` 中缺失、重新排序（没有位置标记如 `%1$s`）或类型发生变化
-- `msgid` 和 `msgid_plural` 之间命名占位符被重命名（例如，`%(user)s` 变为 `%(name)s`），这会在运行时破坏查找
-- 花括号样式占位符（`{0}`、`{name}`、`{{count}}`）在 `msgid` 和 `msgid_plural` 之间数量或名称不一致
-- 不要报告使用显式位置标记正确表达的重新排序
+#### Placeholder Consistency
+- Format placeholders (`%s`, `%d`, `%.2f`, `%(name)s`) present in the `msgid` but missing, reordered (without positional markers like `%1$s`), or changed in type in the `msgid_plural`
+- Named placeholders renamed between `msgid` and `msgid_plural` (e.g., `%(user)s` becoming `%(name)s`), which breaks lookups at runtime
+- Brace-style placeholders (`{0}`, `{name}`, `{{count}}`) whose count or names differ between `msgid` and `msgid_plural`
+- Do not report reordering that is correctly expressed with explicit positional markers
 
-#### 复数形式
-- 存在 `msgid_plural` 但未声明 `Plural-Forms` 头部，或 `Plural-Forms` 头部的 `nplurals` 与 `plural` 表达式可达到的形式数量不一致
-- 仅单数条目（`msgid` 没有 `msgid_plural`）的文本中嵌入了计数占位符（例如，`%d files`），表明遗漏了复数形式
-- `plural` 表达式是常量（始终求值为相同索引），使复数选择失去意义
+#### Plural Forms
+- `msgid_plural` present but no `Plural-Forms` header declared, or a `Plural-Forms` header whose `nplurals` is inconsistent with the `plural` expression's reachable form count
+- Singular-only entries (`msgid` without `msgid_plural`) whose text embeds a count placeholder (e.g., `%d files`), indicating a plural form was forgotten
+- A `plural` expression that is constant (always evaluates to the same index), defeating the purpose of plural selection
 
-#### 转义与周围空白
-- 损坏的转义序列（`\n`、`\t`、`\"`）导致字面显示或提前终止字符串
-- `msgid` 和 `msgid_plural` 之间的前导/尾随空白或尾随 `\n` 不同，从而改变布局或拼接方式
-- 任何字符串中存在编码损坏的字符（乱码）
+#### Escapes and Surrounding Whitespace
+- Broken escape sequences (`\n`, `\t`, `\"`) that render literally or terminate the string early
+- Leading/trailing whitespace or trailing `\n` that differs between `msgid` and `msgid_plural` in a way that changes layout or concatenation
+- Encoding-corrupted characters (mojibake) in any string

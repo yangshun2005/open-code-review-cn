@@ -1,45 +1,45 @@
-#### 明显的拼写或拼写错误
-- 组件名称、Props、插槽或面向用户的字符串中的拼写错误，影响可读性
+#### Obvious Typos or Spelling Errors
+- Spelling errors in component names, props, slots, or user-facing strings that affect readability
 
-#### 死代码
-- 未使用的岛屿、框架组件、脚本或模板分支，这些会增加客户端成本，但不影响渲染行为
+#### Dead Code
+- Unused islands, framework components, scripts, or template branches that add client cost without affecting rendered behavior
 
-#### Astro 组件边界
-- 当 frontmatter 数据到达客户端 HTML、内联脚本或水合岛屿时，请验证它是在构建时还是请求时计算的，以及暴露非 `PUBLIC_` 环境值、cookies、headers、会话、`Astro.locals`、密钥、仅请求数据或仅服务器 API 是否是有意为之
-- 标记那些似乎假定 frontmatter 值在浏览器中具有响应性的 `.astro` 模板
-- 标记仅用于渲染静态标记的框架组件，如果纯 Astro 标记可以避免不必要的客户端 JavaScript
+#### Astro Component Boundaries
+- When frontmatter data reaches client HTML, inline scripts, or hydrated islands, verify whether it was computed at build time or request time and whether exposing non-`PUBLIC_` env values, cookies, headers, sessions, `Astro.locals`, secrets, request-only data, or server-only APIs is intentional
+- Flag `.astro` templates that appear to assume frontmatter values are reactive in the browser
+- Flag framework components used only to render static markup when plain Astro markup would avoid unnecessary client JavaScript
 
-#### 水合与岛屿
-- `client:*` 仅适用于直接导入的 UI 框架组件，不适用于 `.astro` 组件或动态标签
-- 标记非关键 UI 上的 `client:load`、错过的 `client:idle` 或 `client:visible` 机会、媒体查询实际上并未限制交互需求的 `client:media`，以及由过大或过多岛屿导致的过度水合
-- 标记没有框架字符串或没有回退内容的 `client:only`，当结果在水合前 UI 为空白或令人困惑时
+#### Hydration and Islands
+- `client:*` applies only to directly imported UI framework components, not `.astro` components or dynamic tags
+- Flag `client:load` on non-critical UI, missed `client:idle` or `client:visible` opportunities, `client:media` where the media query does not actually gate the interaction need, and over-hydration from large or overly numerous islands
+- Flag `client:only` without the framework string or without fallback content when the result is blank or confusing pre-hydration UI
 
-#### 服务器到客户端数据传输
-- 标记水合框架组件 Props 或服务器获取的数据在传递到客户端时未缩减为最小交互载荷；跨越水合边界的 Props 必须使用 Astro 支持的可序列化类型，因此标记函数、类实例、循环对象、密钥和不必要的大载荷
-- `<script define:vars>` 值会被 JSON 字符串化并内联；标记密钥、大载荷或每个实例的重复
+#### Server-to-Client Data Transfer
+- Flag hydrated framework component props or server-fetched data passed client-side without reducing to the minimal interaction payload; props crossing hydrated boundaries must use Astro-supported serializable types, so flag functions, class instances, circular objects, secrets, and unnecessarily large payloads.
+- `<script define:vars>` values are JSON-stringified and inline; flag secrets, large payloads, or repeated per-instance duplication
 
-#### 服务器岛屿
-- 标记 `server:defer` 的使用，如果没有所需的适配器支持，或者当延迟内容需要有意义的加载状态时没有回退插槽
-- 传递给 `server:defer` 岛屿的 Props 必须使用 Astro 支持的可序列化类型；标记函数、循环对象、密钥和大请求对象
-- 标记 `server:defer` 的使用，将请求特定数据泄漏到可缓存输出中或削弱隐私假设
+#### Server Islands
+- Flag `server:defer` usage without required adapter support or without a fallback slot when deferred content needs a meaningful loading state
+- Props passed into `server:defer` islands must use Astro-supported serializable types; flag functions, circular objects, secrets, and large request objects
+- Flag `server:defer` uses that leak request-specific data into cacheable output or weaken privacy assumptions
 
-#### 模板安全
-- 将 `set:html` 视为高风险逃生舱口；除非来源明确可信或已清理，否则标记它
-- 标记插入到属性、URL 或原始标记中的不安全或验证不足的动态值
-- 标记脆弱的模板结构，尤其是混合使用 `set:*` 或条件标记以意外方式改变 HTML 结构的情况
+#### Template Safety
+- Treat `set:html` as a high-risk escape hatch; flag it unless the source is clearly trusted or sanitized
+- Flag unsafe or insufficiently validated dynamic values inserted into attributes, URLs, or raw markup
+- Flag fragile template structures, especially mixed `set:*` usage or conditional markup that changes HTML shape in surprising ways
 
-#### 脚本
-- 标记具有除 `src` 之外属性的脚本，当未处理的行为导致可避免的每个实例重复、绕过打包或依赖仅服务器值时
-- 标记用于处理小型处理过的 Astro 脚本即可处理的行为的框架水合
+#### Scripts
+- Flag scripts with attributes other than `src` when unprocessed behavior causes avoidable per-instance duplication, bypasses bundling, or relies on server-only values
+- Flag framework hydration used for behavior that a small processed Astro script would handle
 
-#### 样式
-- 当作用域样式或窄范围 `:global(...)` 转义即可满足时，标记不必要的 `is:global` 使用
-- 标记假定作用域 CSS 可以跨组件边界样式化子组件内部的 Selector
-- 标记接受父级样式但未能转发 `class` 和所需 rest Props 的组件
+#### Styles
+- Flag unnecessary `is:global` usage when scoped styles or a narrow `:global(...)` escape would do
+- Flag selectors that assume scoped CSS can style child component internals across a component boundary
+- Flag components that accept parent styling but fail to forward `class` and needed rest props
 
-#### 内容与资源
-- 对于结构化 Markdown/MDX/JSON 内容，当 Astro 内容集合能显著改善 Schema 验证、类型或路由生成时，标记临时加载
-- 当实现似乎期望 Astro 图像优化、响应式行为、指纹识别、转换或导入时验证时，标记普通 `<img>` 或 `public/` 资源使用
+#### Content and Assets
+- For structured Markdown/MDX/JSON content, flag ad hoc loading when Astro content collections would materially improve schema validation, typing, or route generation
+- Flag plain `<img>` or `public/` asset usage when the implementation appears to expect Astro image optimization, responsive behavior, fingerprinting, transforms, or import-time validation
 
-#### 标记与可访问性
-- 标记非语义或脆弱的交互式标记，包括水合前不可访问的岛屿、无效的条件 HTML，或破坏键盘或焦点行为的混合 Astro/框架组合
+#### Markup and Accessibility
+- Flag non-semantic or fragile interactive markup, including inaccessible islands before hydration, invalid conditional HTML, or mixed Astro/framework composition that breaks keyboard or focus behavior

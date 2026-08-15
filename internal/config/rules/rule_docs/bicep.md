@@ -1,28 +1,28 @@
-> 优先精确而非召回：仅在确信是真实缺陷时才提出问题，当上下文不清晰时保持沉默——误报比遗漏小问题更消耗审查者的信任。将安全和正确性问题视为阻塞性，将风格或惯用法建议视为非阻塞性。仅审查所审查 Bicep 文件中可观察到的内容；不要推断此文件之外的 Azure 订阅/租户配置、已部署资源状态或策略分配。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking. Review only what is observable in the Bicep under review; do not infer Azure subscription/tenant configuration, deployed resource state, or policy assignments that live outside this file.
 
-#### 明显的拼写错误
-- 资源/模块/参数/变量/输出名称在声明位置处的拼写错误；不要在引用位置报告拼写错误
-- `@description()` 文本中的拼写错误影响模块公共接口的可读性
+#### Obvious Typos or Spelling Errors
+- Spelling errors in resource/module/parameter/variable/output names at their declaration sites; do not report spelling errors at reference sites
+- Typos in `@description()` text that affect readability of the module's public interface
 
-#### 硬编码的机密和凭据
-- 直接赋值给资源属性、参数默认值或变量的字面量密码、连接字符串、API 密钥或访问令牌，而非来自 Key Vault 引用（`getSecret()` / `Microsoft.KeyVault/vaults/secrets` 资源）或部署时提供的安全参数
-- 参数名称或描述明确表明是凭据（密码、密钥、令牌、连接字符串、API 密钥）但未使用 `@secure()` 装饰器声明，该装饰器可防止值被记录或显示在部署历史中
+#### Hardcoded Secrets and Credentials
+- A literal password, connection string, API key, or access token assigned directly to a resource property, parameter default, or variable instead of coming from a Key Vault reference (`getSecret()` / `Microsoft.KeyVault/vaults/secrets` resource) or a secure parameter supplied at deployment time
+- A parameter whose name or description clearly indicates a credential (password, secret, token, connectionString, apiKey) declared without the `@secure()` decorator, which is what prevents the value from being logged or shown in deployment history
 
-#### 过度宽松的访问权限
-- 在订阅或资源组范围内授予宽泛内置角色（`Owner`、`Contributor`）的 `Microsoft.Authorization/roleAssignments` 资源，而更窄的资源范围或自定义角色即可满足需求，尤其是当同一文件中的同级分配使用更窄范围时
-- 网络安全组规则（`Microsoft.Network/networkSecurityGroups/securityRules`）在敏感端口（SSH/22、RDP/3389 或数据库端口如 MySQL/3306、PostgreSQL/5432、SQL Server/1433、MongoDB/27017）或所有端口（`destinationPortRange: '*'`）上将 `sourceAddressPrefix` 设置为 `*`/`Internet`/`0.0.0.0/0`
-- 存储账户、Key Vault 或 SQL 服务器资源将 `publicNetworkAccess` 显式设置为 `'Enabled'`（或保留为解析为公共访问的默认值），且同一文件中没有补偿性的 `networkAcls`/私有端点配置
+#### Overly Permissive Access
+- A `Microsoft.Authorization/roleAssignments` resource granting a broad built-in role (`Owner`, `Contributor`) at subscription or resource-group scope where a narrower, resource-scoped or custom role would suffice, especially when sibling assignments in the same file use narrower scopes
+- A network security group rule (`Microsoft.Network/networkSecurityGroups/securityRules`) with `sourceAddressPrefix` set to `*`/`Internet`/`0.0.0.0/0` on a sensitive port (SSH/22, RDP/3389, or a database port such as MySQL/3306, PostgreSQL/5432, SQL Server/1433, MongoDB/27017) or on all ports (`destinationPortRange: '*'`)
+- A storage account, key vault, or SQL server resource with `publicNetworkAccess` explicitly set to `'Enabled'` (or left at a default that resolves to public) alongside no compensating `networkAcls`/private-endpoint configuration elsewhere in the same file
 
-#### 不安全的资源默认值
-- 存储账户未将 `minimumTlsVersion` 设置为当前版本，或将 `supportsHttpsTrafficOnly` 显式设置为 `false`
-- 资源属性禁用静态加密或透明数据加密，而资源类型支持启用这些功能
-- 不要仅因差异中未给出任何指示而标记省略可选加固属性的资源——仅标记显式的不安全值或显式禁用安全默认值的情况
+#### Insecure Resource Defaults
+- A storage account without `minimumTlsVersion` set to a current version, or with `supportsHttpsTrafficOnly` explicitly set to `false`
+- A resource property that disables encryption-at-rest or transparent data encryption where the resource type supports enabling it
+- Do not flag a resource for merely omitting an optional hardening property when the diff gives no indication either way — only flag an explicit insecure value or an explicit disabling of a secure default
 
-#### 版本控制和可复现性
-- 资源类型字符串中的 `api-version` 相对于同一差异中同一提供程序的同级资源异常陈旧——这种不一致值得标记，而非绝对的“必须最新”规则
-- 模块引用（`module ... 'path/to/module.bicep'` 或注册表引用）未固定版本/标签，而周围文件通常固定版本
+#### Versioning and Reproducibility
+- An `api-version` in a resource's type string that is unusually old relative to sibling resources of the same provider in the same diff — inconsistency worth flagging, not an absolute "must be latest" rule
+- A module reference (`module ... 'path/to/module.bicep'` or a registry reference) with no version/tag pinning where the surrounding file otherwise pins versions
 
-#### 风格和结构
-- 在差异范围内声明但从未引用的参数，或在差异范围内引用但未声明的参数/变量
-- 同一文件中的重复资源符号名称（如果其他工具尚未捕获，将导致编译失败）
-- 不要标记 Bicep 格式化程序会自动修复的格式/空白问题——专注于结构和语义问题
+#### Style and Structure
+- Parameters declared but never referenced anywhere in the diff's scope, or referenced parameters/variables never declared in the diff's scope
+- Duplicate resource symbolic names within the same file (would fail compilation, if not already caught by other tooling)
+- Do not flag formatting/whitespace that the Bicep formatter would silently fix — focus on structural and semantic issues

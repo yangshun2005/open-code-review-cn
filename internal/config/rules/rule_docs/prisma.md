@@ -1,40 +1,40 @@
-#### Prisma Schema 审查原则
-> 优先精确而非召回：仅报告在变更的 schema 及其可达的应用程序、迁移和数据源上下文中可能真实存在的缺陷。将数据丢失、完整性、安全性和兼容性问题视为阻塞性；仅风格建议为非阻塞性。除非差异揭示了具体的生产后果，否则不要重复 `prisma validate`、`prisma format`、迁移工具或数据库机械性确定的错误。
+#### Prisma Schema Review Principles
+> Favor precision over recall: report only defects likely real in the changed schema and its reachable application, migration, and datasource context. Treat data-loss, integrity, security, and compatibility findings as blocking; style-only suggestions are non-blocking. Do not duplicate errors that `prisma validate`, `prisma format`, migration tooling, or the database determine mechanically unless the diff reveals a concrete production consequence.
 
-在报告非局部声明之前，使用 `file_read` 和 `code_search` 检查数据源提供者、Prisma 版本、迁移历史、生成的客户端调用点、查询和现有 schema 约定。在没有证据表明数据库提供者、已部署数据或受影响的应用程序行为的情况下，不要假设关系操作、索引、原生类型、字段或生成器设置不安全。
+Before reporting a non-local claim, use `file_read` and `code_search` to inspect the datasource provider, Prisma version, migration history, generated-client call sites, queries, and existing schema conventions. Do not assume a relation action, index, native type, field, or generator setting is unsafe without evidence of the database provider, deployed data, or application behavior it affects.
 
-#### 关系和引用完整性
-- 关系字段的可选性、标量外键字段、`fields` 或 `references` 声明不一致，导致无效或无法表示的关系。确认该关系是关系型还是 MongoDB，以及受影响的字段是否实际被更改。
-- `onDelete` 或 `onUpdate` 操作可能意外删除、置空或孤立数据；对必需关系使用 `SetNull`；创建破坏性路径或循环的级联；或配置的提供者不支持的操作。仅在存在受影响数据所有权和删除/更新流程的证据时报告。
-- 同一模型之间存在多个关系但缺少绑定预期字段所需的关系名称，或关系名称仅在一侧更改。
-- 对 `relationMode` 的更改移除了数据库强制的外键，或将完整性强制转移到 Prisma，而应用程序没有相应的保障措施。不要报告用于已记录数据库限制的有意模式。
-- 隐式多对多关系被更改，而需要显式连接模型来提供关系元数据、引用操作、载荷字段或稳定的数据库映射。
+#### Relations and Referential Integrity
+- Relation fields whose optionality, scalar foreign-key field, `fields`, or `references` declarations disagree, allowing an invalid or unrepresentable relationship. Confirm whether the relation is relational or MongoDB and whether the affected fields are actually changed.
+- `onDelete` or `onUpdate` actions that can unexpectedly delete, null, or orphan data; `SetNull` on a required relation; cascades that create destructive paths or cycles; or an action unsupported by the configured provider. Report only with evidence of affected data ownership and delete/update flows.
+- Ambiguous multiple relations between the same models that lack the relation names needed to bind intended fields, or a relation name changed on only one side.
+- Changes to `relationMode` that remove database-enforced foreign keys or shift integrity enforcement to Prisma without corresponding application safeguards. Do not report intentional modes used for a documented database limitation.
+- Implicit many-to-many relations changed where explicit join models are required for relation metadata, referential actions, payload fields, or stable database mappings.
 
-#### Schema 演进和数据兼容性
-- 以可能导致现有数据丢失、迁移失败或破坏已部署客户端代码的方式删除、重命名、缩小、设为必需或更改模型、字段、枚举值、标识符、唯一约束、映射、原生类型或默认值的含义。在标记前检查迁移和调用点。
-- 添加非空字段而没有针对现有行的安全回填/默认值/迁移策略；更改默认值以改变新记录的行为；或使用与 Prisma/客户端预期不匹配的数据库默认值。
-- 以改变身份、upsert/connect 选择器、生成的客户端名称、现有数据库列/表名称或外部存储引用的方式更改 `@id`、`@@id`、`@unique`、`@@unique`、`@map` 或 `@@map`。
-- 删除或重命名现有行、迁移或应用程序代码仍可能使用的枚举值。除非提供者/应用程序兼容性确立了真实风险，否则不要标记新增的枚举值。
-- 与配置的提供者、已部署的数据库版本、现有值、精度/刻度、长度或时区语义不兼容的原生数据库类型、`@db.*` 属性和提供者特定功能。
+#### Schema Evolution and Data Compatibility
+- Removing, renaming, narrowing, making required, or changing the meaning of a model, field, enum value, identifier, unique constraint, mapping, native type, or default in a way that can lose existing data, fail a migration, or break deployed client code. Inspect migrations and call sites before flagging.
+- Adding a non-null field without a safe backfill/default/migration strategy for existing rows; changing a default that changes behavior for new records; or using a database default that does not match the Prisma/client expectation.
+- Changing `@id`, `@@id`, `@unique`, `@@unique`, `@map`, or `@@map` in a way that alters identity, upsert/connect selectors, generated client names, existing database column/table names, or externally stored references.
+- Removing or renaming an enum value that existing rows, migrations, or application code can still use. Do not flag additive enum values unless provider/application compatibility establishes a real risk.
+- Native database types, `@db.*` attributes, and provider-specific features incompatible with the configured provider, deployed database version, existing values, precision/scale, length, or timezone semantics.
 
-#### 索引、约束和查询行为
-- 仅在应用程序查询、关系查找、唯一性保证或迁移行为证明具体需求时，才报告缺失、删除或顺序错误的 `@@index`、`@@unique` 或复合约束。不要仅基于字段名或假设的规模要求索引。
-- 对现有数据添加唯一约束而没有去重/迁移路径，或当调用方依赖唯一性进行身份验证、租户隔离、幂等性、`connect` 或 `upsert` 时删除唯一约束。
-- 与更改的相等性、排序或关系访问模式不匹配的复合索引/唯一约束，导致选择器不可用或可避免的生产查询回归。
-- 对全文、部分、聚簇、排序、操作符类或其他提供者特定的索引选项的更改，而配置的提供者/版本不支持或改变正确性语义。
+#### Indexes, Constraints, and Query Behavior
+- Missing, removed, or incorrectly ordered `@@index`, `@@unique`, or composite constraints only when application queries, relation lookups, uniqueness guarantees, or migration behavior demonstrate a concrete need. Do not require indexes based solely on a field name or hypothetical scale.
+- A unique constraint added to existing data without a deduplication/migration path, or removed when callers depend on uniqueness for authentication, tenancy, idempotency, `connect`, or `upsert`.
+- Composite indexes/unique constraints that do not match changed equality, ordering, or relation access patterns, producing an unusable selector or avoidable production query regression.
+- Changes to full-text, partial, clustered, sort, operator-class, or other provider-specific index options that the configured provider/version does not support or that change correctness semantics.
 
-#### 数据源、生成器和部署安全
-- Schema 或关联的 Prisma 配置中硬编码的数据库 URL、凭据、令牌或连接参数，可能被提交、记录或部署到错误环境。优先使用基于环境的配置，并确认该值实际上是秘密而非安全的本地/测试 URL。
-- 与目标环境或迁移工作流不兼容的数据源提供者、schema、扩展、影子数据库、直接连接或连接池更改。首先检查 Prisma 配置和部署设置。
-- 可能破坏构建、运行时部署目标、生成的导入或 CI 的生成器提供者、输出、二进制目标、引擎、预览功能或客户端生成更改。不要仅因生成器设置与默认值不同而标记。
-- 启用、移除或更改预览或实验性功能而没有兼容性证据；确保项目的 Prisma 版本支持配置的功能。
+#### Datasource, Generators, and Deployment Safety
+- Hard-coded database URLs, credentials, tokens, or connection parameters in a schema or associated Prisma configuration where they can be committed, logged, or deployed to the wrong environment. Prefer environment-based configuration and confirm the value is actually secret rather than a safe local/test URL.
+- Datasource provider, schema, extension, shadow-database, direct-connection, or connection-pooling changes incompatible with the target environment or migration workflow. Check Prisma configuration and deployment setup first.
+- Generator provider, output, binary-target, engine, preview-feature, or client-generation changes that can break builds, runtime deployment targets, generated imports, or CI. Do not flag a generator setting merely because it differs from a default.
+- Preview or experimental features enabled, removed, or changed without compatibility evidence; ensure the project's Prisma version supports the configured feature.
 
-#### 安全性和敏感数据
-- 通过生成的客户端、日志、管理工具或过于宽泛的关系新暴露秘密、凭据、访问令牌、密码哈希、私钥、财务数据或个人数据的模型或字段。确认字段的实际使用和访问边界。
-- 仅在代码和 schema 共同表明跨租户访问、重复身份或授权绕过可能发生时，才报告缺失的租户/所有者关系、唯一性或完整性约束。不要从通用模型名称推断授权要求。
-- 不安全的默认值、级联、映射或可空所有权字段，使破坏性操作跨越已建立的租户或授权边界。
+#### Security and Sensitive Data
+- Models or fields that newly expose secrets, credentials, access tokens, password hashes, private keys, financial data, or personal data through generated clients, logs, admin tooling, or overly broad relations. Confirm the field's actual use and access boundary.
+- Missing tenant/owner relation, uniqueness, or integrity constraint only when code and schema together show that cross-tenant access, duplicate identities, or authorization bypass is possible. Do not infer authorization requirements from generic model names.
+- Unsafe defaults, cascades, mappings, or nullable ownership fields that let destructive operations cross an established tenant or authorization boundary.
 
-#### 审查范围
-- 专注于正确性、完整性、迁移安全、具有演示查询证据的性能、安全性和部署兼容性。
-- 不要将格式、模型/字段命名偏好、关系命名风格、文档请求或推测性索引作为发现项报告。
-- 当 schema 更改有意伴随迁移、生成的客户端更新或应用程序代码更改时，在报告兼容性问题之前审查完整的更改集。
+#### Review Scope
+- Focus on correctness, integrity, migration safety, performance with demonstrated query evidence, security, and deployment compatibility.
+- Do not report formatting, model/field naming preferences, relation naming style, documentation requests, or speculative indexes as findings.
+- When the schema change is intentionally accompanied by a migration, generated-client update, or application code change, review the complete change set before reporting a compatibility issue.

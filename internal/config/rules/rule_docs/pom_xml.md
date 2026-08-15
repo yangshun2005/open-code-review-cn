@@ -1,1 +1,1 @@
-在新添加的代码中，版本号不得包含快照限定符；其他任何版本均允许。注意：当代码中未声明版本号时，是因为版本在父 POM 中管理。若版本号不在新添加的代码行上，则忽略此规则。
+In newly added code, the version must not contain the snapshot qualifier; any other version is allowed. Note: when no version is declared in the code, it is because the version is managed in the parent POM. Ignore this rule when the version number is not on a newly added line of code.

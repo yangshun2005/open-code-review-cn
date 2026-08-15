@@ -1,39 +1,39 @@
-> 宁缺毋滥：仅在确信为真实缺陷时提出问题，当上下文不明确时保持沉默——误报比遗漏小问题更消耗评审者的信任。将安全性和正确性问题视为阻塞性问题，将风格或惯用法建议视为非阻塞性问题。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking.
 
-#### 明显的拼写错误
-- 消息、字段、枚举、枚举值、服务或 RPC 名称在声明位置存在拼写错误；不要在引用位置报告拼写错误
-- 影响公共 API 表面可读性的注释或选项字符串中的拼写错误
+#### Obvious Typos or Spelling Errors
+- Spelling errors in message, field, enum, enum-value, service, or rpc names at their declaration sites; do not report spelling errors at reference sites
+- Comments or option strings with spelling errors that affect readability of the public API surface
 
-#### 字段编号与线缆兼容性
-- 复用或重新编号的字段标签破坏了现有客户端或服务器的兼容性（线缆兼容性）
-- 改变字段类型、标签（`optional`/`repeated`/`required`）或 oneof 成员关系，导致破坏线缆或 JSON 兼容性
-- 删除字段时未同时将其编号和名称添加到 `reserved`
-- 重命名字段时未考虑 `json_name`，而 JSON 客户端依赖旧名称
-- 不要标记纯新增且使用新编号的字段，或仅涉及文档的注释变更
+#### Field Numbers and Wire Compatibility
+- Reused or renumbered field tags that break existing clients or servers (Wire Compatibility)
+- Changing a field's type, label (`optional`/`repeated`/`required`), or oneof membership in a way that breaks wire or JSON compatibility
+- Deleting a field without adding both its number and name to `reserved`
+- Renaming a field without `json_name` consideration when JSON clients depend on the old name
+- Do not flag purely additive new fields with fresh numbers, or documentation-only comment changes
 
-#### 消息与字段设计
-- 缺少 `optional`（proto3），当必须区分“缺失”与“零值”时
-- 在顺序重要的场景使用 `map`，或在键查找更清晰时使用 `repeated`
-- oneof 字段在意图使用显式哨兵值时，仍可表示无效的零状态
-- 嵌套消息重复编码包中其他位置已建模的同一领域概念
-- 当 Schema 已保持一致时，不要报告 `message` 与 `group` 的风格偏好（group 为遗留用法）
+#### Message and Field Design
+- Missing `optional` (proto3) where absence must be distinguishable from the zero value
+- `map` used where order matters, or `repeated` used where key lookup would be clearer
+- oneof fields that leave an invalid zero-state representable when an explicit sentinel was intended
+- Nested messages that re-encode the same domain concept already modeled elsewhere in the package
+- Do not report stylistic preference for `message` vs `group` (groups are legacy) when the schema is already consistent
 
-#### 枚举与默认值
-- 第一个枚举值不是零值 `*_UNSPECIFIED`（或等效）哨兵
-- 跨 Schema 版本依赖隐式零默认值，而客户端将零视为有意义的数据
-- 在旧客户端使用的现有数值范围中间插入新的枚举值
-- 不要标记在末尾追加且使用新编号的增量枚举值
+#### Enums and Defaults
+- First enum value is not a zero `*_UNSPECIFIED` (or equivalent) sentinel
+- Relying on implicit zero defaults across schema versions when clients treat zero as meaningful data
+- Inserting new enum values in the middle of an existing numeric range used by older clients
+- Do not flag additive enum values appended at the end with new numbers
 
-#### 服务与 RPC 设计
-- 非幂等方法被建模为可安全重试且无客户端可见副作用
-- 多个 RPC 共享相同的请求或响应消息类型，而不同的契约本可防止意外字段耦合
-- 无界客户端/服务器流式传输，未记录流控、页面大小或截止时间预期
-- 缺少请求或响应消息包装，导致强制使用原始/标量请求体
-- 不要标记正确使用的标准 google.api 注解或已知类型
+#### Services and RPC Design
+- Non-idempotent methods modeled as if they were safe to retry without client-visible side effects
+- Multiple rpcs sharing the same request or response message type when distinct contracts would prevent accidental field coupling
+- Unbounded client/server streaming without documented flow control, page size, or deadline expectations
+- Missing request or response message wrappers that force primitive/scalar request bodies
+- Do not flag standard google.api annotations or well-known types used correctly
 
-#### 安全与资源限制
-- 从不可信输入接受 `google.protobuf.Any` 而未进行类型白名单校验
-- 对不可信载荷使用无界 `repeated`/`map` 字段或递归消息深度，且无应用级限制
-- 在字段默认值、示例或注释中嵌入密钥、令牌或凭据
-- 文件路径、URL 或 SQL 片段作为无约束字符串携带，且未在服务边界提供验证指导
-- 当限制在 Schema 外部强制执行且该边界已明确记录时，不要报告
+#### Security and Resource Limits
+- `google.protobuf.Any` accepted from untrusted input without type allowlisting
+- Unbounded `repeated`/`map` fields or recursive message depth on untrusted payloads with no application-level limits
+- Secrets, tokens, or credentials embedded in field defaults, examples, or comments
+- File paths, URLs, or SQL fragments carried as unconstrained strings without validation guidance at the service boundary
+- Do not report when limits are enforced outside the schema and that boundary is clearly documented

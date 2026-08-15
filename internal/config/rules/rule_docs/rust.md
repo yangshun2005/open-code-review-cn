@@ -1,61 +1,61 @@
-#### 明显的拼写错误
-- 在类型名、函数名、变量名、枚举变体、特征名或模块名的声明位置存在拼写错误；不要在调用位置报告拼写错误
-- 日志消息、panic 消息、错误消息或公共诊断信息中包含影响可读性的拼写错误的字符串
+#### Obvious Typos or Spelling Errors
+- Spelling errors in type names, function names, variable names, enum variants, trait names, or module names at their declaration sites; do not report spelling errors at call sites
+- Strings in log messages, panic messages, error messages, or public diagnostics containing spelling errors that affect readability
 
-#### 所有权与生命周期正确性
-- 错误地返回引用、借用值逃逸出其有效作用域，或生命周期关系导致 API 不安全或不可用
-- 为了满足借用而引入过多或不必要的 `clone()` 调用，而使用借用、迭代器、`Cow` 或所有权转移会更清晰且更高效
-- 使用内部可变性（`RefCell`、`Cell`、`Mutex`）来绕过所有权问题，而实际上并不存在真正的共享可变性需求
-- 使用 `Rc<RefCell<T>>` 或 `Arc<Mutex<T>>` 造成引用循环，而应使用 `Weak` 来打破所有权循环
+#### Ownership and Lifetime Correctness
+- Incorrectly returned references, borrowed values escaping their valid scope, or lifetime relationships that make an API unsound or unusable
+- Excessive or unnecessary `clone()` calls introduced to satisfy borrowing when a borrow, iterator, `Cow`, or ownership transfer would be clearer and cheaper
+- Interior mutability (`RefCell`, `Cell`, `Mutex`) used to work around ownership without a real shared-mutability requirement
+- Reference cycles with `Rc<RefCell<T>>` or `Arc<Mutex<T>>` where `Weak` should be used to break ownership cycles
 
-#### 错误处理与 Panic
-- 在生产代码或库路径中使用 `unwrap()`、`expect()`、`panic!`、`todo!` 或 `unimplemented!`，而失败是可恢复的或可以通过 `Result` 传播的
-- 过早地将错误转换为字符串或在不提供上下文的情况下丢弃错误；应优先保留原始错误，并在边界处添加可操作的上下文
-- 忽略、吞掉 `Result` 或 `Option` 值，或将其映射为误导性的默认值
-- 公共 API 对普通无效输入直接 panic，而不是返回类型化错误，除非 panic 文档明确说明了编程不变量
+#### Error Handling and Panics
+- `unwrap()`, `expect()`, `panic!`, `todo!`, or `unimplemented!` in production/library paths where the failure is recoverable or can be propagated with `Result`
+- Errors converted to strings too early or discarded without context; prefer preserving the original error and adding actionable context at boundaries
+- `Result` or `Option` values ignored, swallowed, or mapped to misleading defaults
+- Public APIs that panic on ordinary invalid input instead of returning a typed error, unless the panic documents a clear programming invariant
 
-#### 不安全代码边界
-- `unsafe` 块范围超出必要范围，或隐藏了多个不相关的不变量
-- 对 `unsafe` 块、`unsafe fn`、`unsafe impl Send` 或 `unsafe impl Sync` 缺少或未更新安全性说明
-- 解引用原始指针时，没有明确的有效性、对齐、初始化、别名和生命周期保证
-- FFI 边界未验证空指针、缓冲区长度、所有权转移、字符串编码或分配器兼容性
-- 使用 `static mut`、未经检查的 `transmute`、`MaybeUninit`、`mem::zeroed` 或手动 drop 逻辑，而没有记录使操作安全的不变量
+#### Unsafe Code Boundaries
+- `unsafe` blocks that are broader than necessary or hide multiple unrelated invariants
+- Missing or stale safety rationale for `unsafe` blocks, `unsafe fn`, `unsafe impl Send`, or `unsafe impl Sync`
+- Raw pointer dereferences without clear validity, alignment, initialization, aliasing, and lifetime guarantees
+- FFI boundaries that do not validate null pointers, buffer lengths, ownership transfer, string encoding, or allocator compatibility
+- `static mut`, unchecked `transmute`, `MaybeUninit`, `mem::zeroed`, or manual drop logic used without a documented invariant that makes the operation sound
 
-#### 并发与共享状态
-- 持有 `Mutex`、`RwLock` 或 `RefCell` 守卫的时间超过必要长度，尤其是在调用用户代码或可能阻塞的操作期间
-- 在 `.await` 期间持有同步锁，或在异步任务中直接使用阻塞 I/O、睡眠或 CPU 密集型操作
-- 在共享状态、缓存初始化、文件创建或原子操作周围存在检查后执行（check-then-act）的竞态条件
-- 原子操作的内存序对于所保护的数据来说过弱，或使用过强的内存序而掩盖了预期的同步契约
-- 不安全的 `Send` 或 `Sync` 实现，未能在文档化的不变量下证明所有包含的状态都是线程安全的
+#### Concurrency and Shared State
+- Holding `Mutex`, `RwLock`, or `RefCell` guards longer than necessary, especially across calls into user code or potentially blocking operations
+- Holding synchronous locks across `.await`, or using blocking I/O, sleeps, or CPU-heavy work directly inside async tasks
+- Check-then-act races around shared state, cache initialization, file creation, or atomics
+- Atomic operations with ordering that is too weak for the data being protected, or overly strong orderings that hide the intended synchronization contract
+- Unsafe `Send` or `Sync` implementations that do not prove all contained state is thread-safe under the documented invariants
 
-#### 异步与取消安全
-- 当失败、取消或关闭仍需被观察时，丢弃了已生成任务的 `JoinHandle`
-- 在部分写入、锁获取、事务或资源清理过程中，Future 不具备取消安全性
-- 异步函数在请求/工作线程路径中使用同步文件系统、网络或进程 API，可能导致运行时阻塞
-- 重试循环没有退避、超时、取消传播或有界尝试次数
+#### Async and Cancellation Safety
+- Spawned tasks whose `JoinHandle` is dropped when failures, cancellation, or shutdown still need to be observed
+- Futures that are not cancellation-safe around partial writes, lock acquisition, transactions, or resource cleanup
+- Async functions that use synchronous filesystem, network, or process APIs in request/worker paths where the runtime can be blocked
+- Retry loops without backoff, timeout, cancellation propagation, or bounded attempts
 
-#### 集合、迭代器与性能
-- 避免在热路径中进行不必要的分配，例如重复的 `String` 构造、`format!`、`collect()` 或 `to_vec()`，而借用或流式处理已足够
-- 当迭代器适配器和标准库集合 API 能使所有权和复杂度更清晰时，优先使用它们；避免使用密集的迭代器链，以免掩盖错误处理或副作用
-- 当已知预期大小且增长成本显著时，确保哈希映射、向量和字符串已预分配
-- 避免嵌套循环导致的 O(n^2) 查找，而使用 `HashMap`、`HashSet`、排序或索引策略能明显降低复杂度
+#### Collections, Iterators, and Performance
+- Avoid unnecessary allocations in hot paths, such as repeated `String` construction, `format!`, `collect()`, or `to_vec()` where borrowing or streaming is sufficient
+- Prefer iterator adapters and standard library collection APIs when they make ownership and complexity clearer; avoid dense iterator chains that obscure error handling or side effects
+- Ensure hash maps, vectors, and strings are preallocated when the expected size is known and growth cost is material
+- Avoid O(n^2) lookups from nested loops when a `HashMap`, `HashSet`, sorting, or indexing strategy would clearly reduce complexity
 
-#### 类型与 API 设计
-- 使用枚举、新类型和类型化 ID 来建模领域状态，而不是使用布尔值、字符串或原始整数，否则无效状态将可被表示
-- 在设计可复用 API 时，优先使用标准转换和借用特征（`From`、`TryFrom`、`AsRef`、`Borrow`、`IntoIterator`）
-- 公共结构体、枚举、特征和错误应具有适合 crate 边界的命名、可见性、特征派生和文档
-- 避免在公共 API 中暴露具体的集合或同步类型，而应使用切片、迭代器、特征或更窄的抽象以保持灵活性
+#### Type and API Design
+- Model domain states with enums, newtypes, and typed IDs instead of booleans, strings, or primitive integers when invalid states would otherwise be representable
+- Prefer standard conversion and borrowing traits (`From`, `TryFrom`, `AsRef`, `Borrow`, `IntoIterator`) when designing reusable APIs
+- Public structs, enums, traits, and errors should have useful names, visibility, trait derives, and documentation appropriate to the crate boundary
+- Avoid exposing concrete collection or synchronization types in public APIs when a slice, iterator, trait, or narrower abstraction would preserve flexibility
 
-#### 宏与元编程
-仅在 diff 实际定义了 `macro_rules!` 或过程宏时标记；不要对普通的宏调用进行报告。
-- `$x:expr` 片段在展开中被多次插值，导致调用者的表达式（及其副作用）被执行多次；应在展开内部将其绑定到 `let` 一次
-- 导出的或公开使用的宏引用了没有 `$crate::` 前缀的项，导致宏从其他 crate 调用时名称解析失败或绑定到错误的项
-- 令牌树（`$t:tt`）片段在重新发出时没有加括号，运算符优先级可能静默改变预期含义；这仅适用于令牌级（`tt`）插值，因为 `:expr` 片段和整个展开各自被解析为一个完整的表达式
-- 过程宏对格式错误的输入使用 `unwrap()`、`expect()` 或 `panic!`，而不是发出带有有用 span 的 `syn::Error` / `compile_error!`
-- 宏卫生假设被破坏：生成的标识符依赖调用点作用域中的名称，或者当宏在同一模块中被多次调用时，项发生冲突
+#### Macros and Metaprogramming
+Only flag when the diff actually defines a `macro_rules!` or procedural macro; do not report on ordinary macro invocations.
+- An `$x:expr` fragment interpolated more than once in the expansion, so the caller's expression — and any side effects — runs multiple times; bind it to a `let` once inside the expansion
+- Exported or publicly used macros that reference items without `$crate::`, so name resolution breaks or binds the wrong item when the macro is invoked from another crate
+- Token-tree (`$t:tt`) fragments re-emitted without parentheses, where operator precedence can silently change the intended meaning; this applies only to token-level (`tt`) interpolation, since an `:expr` fragment and a whole expansion are each parsed as one complete expression
+- Procedural macros that `unwrap()`, `expect()`, or `panic!` on malformed input instead of emitting a `syn::Error` / `compile_error!` with a useful span
+- Macro-hygiene assumptions that break: generated identifiers relying on names from the call-site scope, or items that collide when the macro is invoked more than once in the same module
 
-#### 安全敏感代码
-- 在使用路径、URL、命令、SQL 和序列化输入之前进行验证；不要使用未经检查的字符串拼接来构建 shell 命令或 SQL
-- 不要记录机密信息、令牌、凭据、私钥或个人身份信息
-- 检查整数转换、字节切片和长度运算是否存在溢出、截断和 UTF-8 边界错误
-- 加密、随机数、身份验证和授权代码必须使用经过充分审查的 crate 和显式错误处理；标记临时实现
+#### Security-Sensitive Code
+- Validate path, URL, command, SQL, and serialized input before use; do not build shell commands or SQL with unchecked string concatenation
+- Do not log secrets, tokens, credentials, private keys, or personally identifiable information
+- Check integer conversions, byte slicing, and length arithmetic for overflow, truncation, and UTF-8 boundary errors
+- Cryptographic, random, authentication, and authorization code must use well-reviewed crates and explicit error handling; flag ad hoc implementations

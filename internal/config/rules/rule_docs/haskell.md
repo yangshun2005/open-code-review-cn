@@ -1,61 +1,61 @@
-> 偏好精确而非召回：只有在你确信是真正的缺陷时才提出问题，当周围上下文不明确时保持沉默——一次误报比一个被忽略的小问题更损害评审者的信任。将安全性和正确性问题视为阻塞性问题，将风格或惯用法建议视为非阻塞性问题。在报告辅助函数的调用点之前，先确认其不变量以及严格性或完全性保证。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking. Confirm invariants and the strictness or totality guarantees of helpers defined elsewhere before reporting their call sites.
 
-#### 明显的拼写错误或笔误
-- 在模块、类型、数据构造器、类型类、函数、字段或模式同义词的声明位置出现拼写错误；不要在调用位置报告拼写错误
-- 面向用户的错误消息、日志输出、Haddock 注释或公共诊断信息中影响可读性的笔误
+#### Obvious Typos or Spelling Errors
+- Spelling errors in module, type, data constructor, typeclass, function, field, or pattern-synonym names at their declaration sites; do not report spelling errors at use sites
+- Typos in user-facing error messages, log output, Haddock comments, or public diagnostics that affect readability
 
-#### 完全性、模式与部分函数
-- 函数方程、`case`、lambda 或 `do` 绑定中的非穷举模式匹配，当存在可达构造器或空输入会在运行时失败时
-- 部分列表和容器操作，如 `head`、`tail`、`init`、`last`、`!!`、`foldl1`、`foldr1`、`minimum` 或 `maximum`，在没有局部证明非空或边界内不变量时；优先使用模式匹配、安全查找或 `NonEmpty`
-- 在普通输入或可恢复路径上使用 `fromJust`、`fromRight`、`read`、`toEnum`、`succ`、`pred`、`error` 或 `undefined`；优先使用完全替代方案，如 `maybe`、`readMaybe`、`readEither` 或显式错误类型
-- 在字段缺失于某些可达构造器的和类型上使用记录选择器
-- 当同一函数已验证不变量、类型已编码该不变量，或失败故意标记不可能的内部状态并附有清晰说明时，不要报告部分操作
+#### Totality, Patterns, and Partial Functions
+- Non-exhaustive pattern matches in function equations, `case`, lambdas, or `do` bindings when a reachable constructor or empty input would fail at runtime
+- Partial list and container operations such as `head`, `tail`, `init`, `last`, `!!`, `foldl1`, `foldr1`, `minimum`, or `maximum` without a locally proven non-empty or in-bounds invariant; prefer pattern matching, safe lookup, or `NonEmpty`
+- `fromJust`, `fromRight`, `read`, `toEnum`, `succ`, `pred`, `error`, or `undefined` on ordinary input or recoverable paths; prefer total alternatives such as `maybe`, `readMaybe`, `readEither`, or an explicit error type
+- Record selectors used on a sum type when the field is absent from some reachable constructors
+- Do not report a partial operation when the same function has already validated the invariant, the type encodes it, or failure deliberately marks an impossible internal state with a clear explanation
 
-#### 惰性、严格性与空间使用
-- 在大型有限集合上使用 `foldl` 且累加操作是严格的，构建 thunk 链；在求值顺序允许时使用 `foldl'` 或严格累加器
-- 保留惰性列表、`ByteString`、`Text` 或流式结构的头部，同时消费其尾部，意外地使整个输入保持存活
-- 对可能无限或有意的流式值调用 `length`、`last`、严格转换或完整排序
-- 重复进行惰性到严格的转换，或仅为了检查前缀而强制整个请求/文件，破坏流式处理并造成可避免的内存峰值
-- 在没有泄漏或延迟问题证据的情况下，投机性地添加 `seq`、bang 模式或深度求值；严格性更改可能改变终止性和异常时序
+#### Laziness, Strictness, and Space Usage
+- `foldl` over a large finite collection with a strict accumulator operation, building a chain of thunks; use `foldl'` or a strict accumulator when evaluation order permits
+- Retaining the head of a lazy list, `ByteString`, `Text`, or streaming structure while consuming its tail, accidentally keeping the entire input alive
+- Calling `length`, `last`, strict conversion, or full sorting on a potentially infinite or intentionally streaming value
+- Repeated lazy-to-strict conversion or forcing an entire request/file merely to inspect a prefix, defeating streaming and creating avoidable memory spikes
+- Adding `seq`, bang patterns, or deep evaluation speculatively without evidence of a leak or latency problem; strictness changes can alter termination and exception timing
 
-#### 错误、异常与资源安全
-- 在没有 `bracket`、`withFile`、`withBinaryFile`、`finally` 或等效托管抽象的情况下打开 `IO` 资源，当异常或异步取消到来时泄漏句柄
-- 在 `SomeException` 上使用 `catch` 或 `try`，无意中吞掉异步异常（如取消）；捕获预期的异常类型或重新抛出异步异常
-- 使用 `throwIO`、`error` 或模式匹配失败来表示调用方需要区分的预期领域错误；酌情返回 `Either`、`ExceptT`、`Maybe` 或类型化异常
-- 清理操作作为主操作之后的普通操作实现，而不是使用异常安全组合子
-- 异常处理器丢弃原始原因或静默替换为看似合理的值，隐藏损坏、部分写入或验证失败
+#### Errors, Exceptions, and Resource Safety
+- `IO` resources opened without `bracket`, `withFile`, `withBinaryFile`, `finally`, or an equivalent managed abstraction, leaking handles when an exception or asynchronous cancellation arrives
+- `catch` or `try` at `SomeException` that unintentionally swallows asynchronous exceptions such as cancellation; catch the expected exception type or rethrow async exceptions
+- `throwIO`, `error`, or pattern-match failure used for an expected domain error that callers need to distinguish; return `Either`, `ExceptT`, `Maybe`, or a typed exception as appropriate
+- Cleanup implemented as a normal action after the main operation rather than with an exception-safe combinator
+- Exception handlers that discard the original cause or silently substitute a plausible value, hiding corruption, partial writes, or failed validation
 
-#### 并发、异步异常与 STM
-- 使用 `forkIO` 启动线程，但必须观察其异常、生命周期或关闭；优先使用结构化的 `async`/`withAsync`，并确保结果被等待或链接
-- `takeMVar` 后跟工作再 `putMVar` 可能被中断，使 `MVar` 保持为空；使用 `modifyMVar`、掩码或其他异常安全组合子
-- 在 `atomically` 内部执行阻塞操作、无界重试或长时间纯计算，导致事务过度重试或阻碍有效进展
-- 使用 `unsafeIOToSTM` 处理外部可见、非幂等或易受异常影响的效应，这些效应可能因事务重试而多次执行
-- 从多个线程更新共享可变状态，而没有 `MVar`、`TVar`、原子原语或建立单一所有权的设计
-- 可能导致死锁的锁顺序，或在持有 `MVar`/锁时调用未知用户代码或等待另一个线程
+#### Concurrency, Async Exceptions, and STM
+- Threads started with `forkIO` when their exceptions, lifetime, or shutdown must be observed; prefer structured `async`/`withAsync` and ensure results are awaited or linked
+- A `takeMVar` followed by work and `putMVar` that can be interrupted, leaving the `MVar` empty; use `modifyMVar`, masking, or another exception-safe combinator
+- Blocking operations, unbounded retries, or long pure computations performed inside `atomically`, causing transactions to retry excessively or preventing useful progress
+- `unsafeIOToSTM` used for externally visible, non-idempotent, or exception-prone effects that may run multiple times as a transaction retries
+- Shared mutable state updated from multiple threads without an `MVar`, `TVar`, atomic primitive, or a design that establishes single ownership
+- Lock ordering that can deadlock, or holding an `MVar`/lock while calling unknown user code or waiting on another thread
 
-#### 类型、实例与 API 设计
-- 孤儿类型类实例可能与其他包的实例冲突，使行为依赖于导入/构建组合；优先使用定义模块拥有的 `newtype`
-- `fromIntegral`、`toEnum`、`fromEnum` 或窄化转换可能溢出、回绕、截断或接受无效范围，而没有检查边界
-- 违反调用方依赖的类定律的类型类实例，如不一致的 `Eq`/`Ord`、非法的 `Semigroup`/`Monoid`，或与 `Eq` 不一致的 `Hashable`
-- 公共 API 将无效状态暴露为不相关的布尔值、元组或 `String` 值，而代数数据类型或 newtype 可以编码该不变量
-- 约束比实现所需的范围大得多，减少复用或隐藏意外的效应需求
+#### Types, Instances, and API Design
+- Orphan typeclass instances that can conflict with instances from another package and make behavior depend on import/build composition; prefer a `newtype` owned by the defining module
+- `fromIntegral`, `toEnum`, `fromEnum`, or narrowing conversions that can overflow, wrap, truncate, or accept an invalid range without a checked boundary
+- Typeclass instances that violate class laws relied upon by callers, such as inconsistent `Eq`/`Ord`, unlawful `Semigroup`/`Monoid`, or `Hashable` inconsistent with `Eq`
+- Public APIs that expose invalid states as unrelated booleans, tuples, or `String` values when an algebraic data type or newtype can encode the invariant
+- Constraints substantially broader than the implementation needs, reducing reuse or hiding an unintended effect requirement
 
-#### 集合与性能
-- 重复的左结合列表追加（`xs ++ [x]`）或循环中的 `++`，使构造变为二次复杂度；使用前插后反转、构建器或适当的序列累积
-- 在遍历中重复使用 `length`、用 `!!` 索引或线性成员检查，而单次遍历、折叠或 `Set`/`Map` 可以避免二次复杂度
-- 在热路径或高吞吐路径中在 `String`、严格/惰性 `Text` 和严格/惰性 `ByteString` 之间重复转换
-- 在大型文本或字节处理工作负载中使用 `String`，而周围 API 已使用 `Text` 或 `ByteString` 且能实质性地避免逐字符分配
-- 无界地强制并行工作，可能保留整个输入或产生比有用工作更多的 spark/任务
+#### Collections and Performance
+- Repeated left-associated list append (`xs ++ [x]`) or `++` in a loop, which makes construction quadratic; prepend and reverse, use a builder, or accumulate with an appropriate sequence
+- Repeated `length`, indexing with `!!`, or linear membership checks inside a traversal when one pass, a fold, or a `Set`/`Map` would avoid quadratic work
+- Converting repeatedly among `String`, strict/lazy `Text`, and strict/lazy `ByteString` in a hot or high-volume path
+- Using `String` for large text or byte-processing workloads where `Text` or `ByteString` is already the surrounding API and materially avoids per-character allocation
+- Forcing parallel work without bounding it, potentially retaining the entire input or creating more sparks/tasks than useful work
 
-#### 不安全特性、FFI 与元编程
-- `unsafePerformIO` 的结果依赖于可变状态、调用顺序或未反映在值中的参数，或缺少 `NOINLINE`/文档化的引用透明性不变量（在需要时）
-- `unsafeCoerce`、原始地址操作或 `GHC.Exts` 原语，没有狭义文档化的表示和生命周期不变量
-- FFI 调用错误处理指针生命周期、可空性、缓冲区长度、对齐、所有权转移、终结器、回调或 C 字符串编码
-- Template Haskell、准引用或生成的源代码将不可信数据纳入可执行代码
-- 当效应顺序、句柄生命周期或异常行为被依赖以保证正确性时，使用 `unsafeInterleaveIO` 或惰性 I/O
+#### Unsafe Features, FFI, and Metaprogramming
+- `unsafePerformIO` whose result depends on mutable state, invocation order, or arguments not reflected in the value, or that lacks `NOINLINE`/a documented referential-transparency invariant where required
+- `unsafeCoerce`, raw address operations, or `GHC.Exts` primitives without a narrowly documented representation and lifetime invariant
+- FFI calls that mishandle pointer lifetime, nullability, buffer length, alignment, ownership transfer, finalizers, callbacks, or C string encoding
+- Template Haskell, quasiquotation, or generated source that incorporates untrusted data into executable code
+- `unsafeInterleaveIO` or lazy I/O when effect ordering, handle lifetime, or exception behavior is relied upon for correctness
 
-#### 安全敏感代码
-- 外部输入传递给 `System.Process.shell`、显式 shell 命令、SQL 构造或模板/代码求值，而没有严格验证；优先使用带参数列表的 `proc` 和参数化 API
-- 使用不受信任的路径，而没有约束遍历、符号链接行为和预期根目录
-- 密钥、令牌、私钥、凭据或个人身份信息写入日志、异常、源代码或序列化诊断信息
-- 认证、授权、加密或随机令牌代码使用临时算法、非恒定时间的秘密比较（在相关时）或非加密 RNG
+#### Security-Sensitive Code
+- External input passed to `System.Process.shell`, an explicit shell command, SQL construction, or template/code evaluation without strict validation; prefer `proc` with an argument list and parameterized APIs
+- Untrusted paths used without constraining traversal, symlink behavior, and the intended root directory
+- Secrets, tokens, private keys, credentials, or personally identifiable information written to logs, exceptions, source, or serialized diagnostics
+- Authentication, authorization, cryptographic, or random-token code that uses ad hoc algorithms, non-constant-time secret comparisons where relevant, or a non-cryptographic RNG

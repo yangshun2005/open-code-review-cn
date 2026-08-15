@@ -1,33 +1,33 @@
-#### 明显拼写错误检测
-- SQL 关键字拼写错误
-- Mapper 接口方法名与 XML `id` 属性拼写不匹配
-- 动态 SQL 标签中属性名称拼写错误（例如 `test` 条件中的字段名）
+#### Obvious Spelling Error Detection
+- Spelling errors in SQL keywords
+- Spelling mismatches between mapper interface method names and XML `id` attributes
+- Spelling errors in attribute names within dynamic SQL tags (e.g., field names in `test` conditions)
 
-#### SQL 逻辑错误检测
-- **条件错误**：WHERE 条件中逻辑运算符使用错误（AND/OR 混淆）
-- **JOIN 条件错误**：连接条件中使用了错误的字段，或缺少必需的连接条件
-- **动态 SQL 逻辑错误**：`<if test="">` 条件判断错误，例如空值检查错误或类型检查错误
-- **SQL 语法错误**：明显的语法错误，如缺少逗号或括号不匹配
+#### SQL Logic Error Detection
+- **Condition Errors**: Misuse of logical operators in WHERE conditions (AND/OR confusion)
+- **JOIN Condition Errors**: Incorrect fields used in join conditions or missing required join conditions
+- **Dynamic SQL Logic Errors**: Incorrect `<if test="">` condition evaluation, such as null check errors or type check errors
+- **SQL Syntax Errors**: Obvious syntax errors such as missing commas or unmatched parentheses
 
-#### 关键性能问题
-- **全表扫描风险**：缺少 WHERE 条件
-- **无分页的大查询**：可能返回大量数据集且未使用 LIMIT 或分页的查询
-- **重复子查询**：同一子查询在多个位置使用；建议提取到临时表或优化 SQL 结构
+#### Critical Performance Issues
+- **Full Table Scan Risk**: Missing WHERE conditions
+- **Large Query Without Pagination**: Queries that may return large datasets without using LIMIT or pagination
+- **Repeated Subqueries**: The same subquery used in multiple places; recommend extracting to a temporary table or optimizing SQL structure
 
-#### SQL 注入安全风险检测
+#### SQL Injection Security Risk Detection
 
-**应报告的真实安全风险：**
-- **直接字符串拼接**：使用 `${}` 将用户输入参数拼接进 SQL 语句存在 SQL 注入风险
-- **LIKE 查询拼接**：直接拼接 LIKE 条件，而非使用安全的参数绑定
+**Real security risks that should be reported:**
+- **Direct String Concatenation**: Using `${}` to concatenate user input parameters into SQL statements poses SQL injection risks
+- **LIKE Query Concatenation**: Directly concatenating LIKE conditions instead of using safe parameter binding
 
-**不应报告的情况：**
-- **正确使用 `#{}` 参数绑定**：MyBatis 会自动转义参数，确保安全性
-- **静态 SQL 语句**：不涉及动态参数的固定 SQL 语句
+**Cases that should NOT be reported:**
+- **Proper Use of #{} Parameter Binding**: MyBatis automatically escapes parameters, ensuring security
+- **Static SQL Statements**: Fixed SQL statements that do not involve dynamic parameters
 
-**审查原则：**
-- 重点关注可能导致数据损坏、性能问题或安全风险的关键问题
-- 考虑 SQL 语句的实际执行效率及其对数据库性能的影响
-- 优先识别可能导致生产故障的关键问题
-- 在上下文不明确时保持谨慎：当无法确定 SQL 的完整执行上下文时，选择忽略而非报告误报
-- 要求充分证据：仅在存在明确问题证据时才报告问题
-- 宁可漏报，不可误报：保持高精度的问题识别，避免真实问题被过多误报淹没
+**Review Principles:**
+- Focus on critical issues that may cause data corruption, performance problems, or security risks
+- Consider the actual execution efficiency of SQL statements and their impact on database performance
+- Prioritize identifying critical issues that could cause production failures
+- Exercise caution when context is unclear: when the full execution context of SQL cannot be determined, choose to ignore rather than report a false positive
+- Require sufficient evidence: only report issues when there is clear evidence of a problem
+- Prefer false negatives over false positives: maintain high-precision issue identification to avoid drowning real issues in excessive false reports

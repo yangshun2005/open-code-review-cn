@@ -1,19 +1,19 @@
-#### Cargo 清单规范
-- 避免引入通配符依赖版本（如 `*`）；请使用明确的兼容版本要求
-- 在生产级 crate 中避免使用未固定的 `git` 依赖，除非通过 `rev`、`tag` 或文档化策略确保源码可重现
-- 将依赖放置在适当的最小范围内：`dependencies`、`dev-dependencies`、`build-dependencies` 或目标特定的依赖
-- 在多 crate 仓库中，如果现有清单已使用工作区继承，应优先使用工作区管理的版本和特性
+#### Cargo Manifest Hygiene
+- Avoid introducing wildcard dependency versions such as `*`; use an explicit compatible version requirement
+- Avoid unpinned `git` dependencies in production crates unless a `rev`, `tag`, or documented policy makes the source reproducible
+- Keep dependencies in the narrowest appropriate section: `dependencies`, `dev-dependencies`, `build-dependencies`, or target-specific dependencies
+- Prefer workspace-managed versions and features in multi-crate repositories when the surrounding manifest already uses workspace inheritance
 
-#### 版本、MSRV 与解析器
-- 新包应声明明确的 `edition`
-- 当仓库有最低支持的 Rust 版本策略时，库 crate 应声明 `rust-version`
-- 使用特性解析器 v2 或更高版本的工作区应避免意外回退到旧版特性统一行为
+#### Edition, MSRV, and Resolver
+- New packages should declare an explicit `edition`
+- Library crates should declare `rust-version` when the repository has a minimum supported Rust version policy
+- Workspaces using feature resolver v2 or newer should avoid accidentally falling back to legacy feature unification
 
-#### 特性标志
-- 特性应是增量的，不应禁用依赖 crate 中的行为
-- 可选依赖应通过有意的特性名称暴露，而不是在可能成为公共 API 时泄露内部依赖名称
-- 库的默认特性应保持精简；在没有明确理由的情况下，避免默认启用重量级可选集成
+#### Feature Flags
+- Features should be additive and should not disable behavior in dependent crates
+- Optional dependencies should be exposed through intentional feature names rather than leaking internal dependency names when that would become public API
+- Default features should stay small for libraries; avoid enabling heavy optional integrations by default without a clear reason
 
-#### 发布与元数据
-- 已发布的 crate 应包含准确的 `license` 或 `license-file`、`repository`、`description` 以及相关的 include/exclude 设置
-- 避免意外打包生成的产物、凭据、本地路径、包含机密的测试夹具或大型二进制资源
+#### Release and Metadata
+- Published crates should include accurate `license` or `license-file`, `repository`, `description`, and relevant include/exclude settings
+- Avoid accidentally packaging generated artifacts, credentials, local paths, test fixtures with secrets, or large binary assets

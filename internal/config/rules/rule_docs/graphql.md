@@ -1,40 +1,40 @@
-> 宁缺毋滥：仅在确信存在真实缺陷时才提出问题，当上下文不明确时保持沉默——一次误报比遗漏一个次要问题更损害评审者的信任。将安全性和正确性问题视为阻塞性问题，将风格或惯用法建议视为非阻塞性问题。仅审查当前 Schema（SDL）或操作文本中可观察到的内容；不要推断此文件之外代码中的解析器行为。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat security and correctness findings as blocking, and style or idiom suggestions as non-blocking. Review only what is observable in the schema (SDL) or operation text under review; do not infer resolver behavior that lives in code outside this file.
 
-#### 明显的拼写或拼写错误
-- 在类型、字段、枚举值、参数、输入、指令或片段名称的声明位置存在拼写错误；不要在引用位置报告拼写错误
-- 描述或字段名中的拼写错误影响公共 API 表面的可读性
+#### Obvious Typos or Spelling Errors
+- Spelling errors in type, field, enum-value, argument, input, directive, or fragment names at their declaration sites; do not report spelling errors at reference sites
+- Typos in descriptions or field names that affect readability of the public API surface
 
-#### Schema 演进与破坏性变更
-- 删除或重命名客户端可能已依赖的现有类型、字段、枚举值或参数
-- 将原本可空的输入字段或参数改为非空，或向现有字段添加新的必填（非空、无默认值）参数
-- 将字段或参数类型更改为不兼容的类型
-- `@deprecated` 未附带非空 `reason` 即被使用
-- 不要标记纯增量变更：新增类型、新字段、追加的枚举值或新的可选（可空/带默认值）参数
-- GraphQL 没有数字字段标签——不要引入 Protocol Buffers 的字段编号或重新编号概念
+#### Schema Evolution and Breaking Changes
+- Removing or renaming an existing type, field, enum value, or argument that clients may already depend on
+- Making a previously nullable input field or argument non-null, or adding a new required (non-null, no-default) argument to an existing field
+- Changing a field or argument type to an incompatible type
+- `@deprecated` applied without a non-empty `reason`
+- Do not flag purely additive changes: new types, new fields, new enum values appended, or new optional (nullable / defaulted) arguments
+- GraphQL has no numeric field tags — do not import Protocol Buffers field-number or renumbering concepts
 
-#### 命名约定
-- 类型（对象、接口、联合、枚举、输入、标量）应使用 `PascalCase`；字段、参数和输入字段使用 `camelCase`；枚举值使用 `UPPER_CASE`
-- `Query` 字段上冗余的 `query`/`get` 前缀，根字段上的 `mutation`/`subscription` 后缀，以及类型名称中的 `type`/`enum`/`interface`/`union` 后缀
-- 不要仅仅为了建议同义词而标记已遵循这些约定的名称
+#### Naming Conventions
+- Types (object, interface, union, enum, input, scalar) should be `PascalCase`; fields, arguments, and input fields `camelCase`; enum values `UPPER_CASE`
+- Redundant `query`/`get` prefixes on `Query` fields, `mutation`/`subscription` affixes on their root fields, and `type`/`enum`/`interface`/`union` affixes in type names
+- Do not flag names that already follow these conventions merely to suggest a synonym
 
-#### Schema 设计
-- 可空性掩盖了必填与可选意图（例如，永远不会为空的字段被声明为可空，或真正可选的字段被声明为非空）
-- 从任何根字段（`Query`/`Mutation`/`Subscription`）都无法到达的类型——死 Schema
-- 构成 API 契约的公共类型和字段缺少描述
-- 以 `__` 为前缀的名称（保留给内省机制使用）
-- 返回集合的列表字段没有分页或限制参数（`first`/`last`/`limit`/`after`），这会导致无界结果集
+#### Schema Design
+- Nullability that hides required-vs-optional intent (e.g. a field that can never be null typed as nullable, or a genuinely optional field typed non-null)
+- Types unreachable from any root field (`Query`/`Mutation`/`Subscription`) — dead schema
+- Missing descriptions on public types and fields that form the API contract
+- Names prefixed with `__` (reserved for introspection)
+- List fields returning a collection without a pagination or limit argument (`first`/`last`/`limit`/`after`), which allows unbounded result sets
 
-#### 操作与片段
-- 在查询、变更或片段中选择 `@deprecated` 字段
-- 片段循环、未使用的片段以及未使用或未定义的操作变量
-- 匿名操作，而有命名操作有助于缓存和调试
-- 返回对象/接口/联合类型的字段缺少叶子选择
-- 不要标记格式正确但仅存在风格偏好差异的操作
+#### Operations and Fragments
+- Selecting `@deprecated` fields in queries, mutations, or fragments
+- Fragment cycles, unused fragments, and unused or undefined operation variables
+- Anonymous operations where a named operation aids caching and debugging
+- Missing leaf selections on fields that return object/interface/union types
+- Do not flag well-formed operations that merely differ in stylistic preference
 
-#### 安全性与资源限制
-- 仅当条件在当前审查的 Schema 或操作文本中可观察时才标记
-- 无界列表字段（参见 Schema 设计）或深度嵌套/递归选择，且没有文档化的深度或复杂度限制（查询深度 DoS 面）
-- 携带明显敏感数据（按名称或描述判断的令牌、密钥、密码或 PII）的字段，在未附带相关认证指令或注释的情况下暴露
-- 差异中显式启用不受信任表面上的内省机制的指令、配置或注释
-- 不要推断解析器级别的 N+1 成本、dataloader/批处理用法或运行时内省状态——这些存在于解析器代码中，而非 Schema 或操作文件中
-- 当限制在 Schema 之外强制执行并有清晰文档时，不要报告
+#### Security and Resource Limits
+- Only flag when the condition is observable in the schema or operation text under review
+- Unbounded list fields (see Schema Design) or deeply nested / recursive selections with no documented depth or complexity limit (query-depth DoS surface)
+- A field carrying clearly sensitive data (token, secret, password, or PII by name or description) exposed without an accompanying auth-related directive or comment
+- An explicit directive, configuration, or comment in the diff that enables introspection on an untrusted surface
+- Do not infer resolver-level N+1 cost, dataloader/batching usage, or runtime introspection state — those live in resolver code, not in schema or operation files
+- Do not report when a limit is enforced and clearly documented outside the schema

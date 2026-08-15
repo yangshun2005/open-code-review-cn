@@ -1,39 +1,39 @@
-#### Composer 清单审查原则
-> 重点关注新引入的正确性、可重现性、安全性和部署缺陷。在声称存在依赖或平台不兼容问题之前，请检查源代码使用情况、CI、容器、部署配置以及相邻的工作区清单。不要将关于精确固定版本与兼容范围之间的偏好差异作为审查发现。
+#### Composer Manifest Review Principles
+> Focus on newly introduced correctness, reproducibility, security, and deployment defects. Inspect source usage, CI, containers, deployment configuration, and nearby workspace manifests before claiming a dependency or platform incompatibility. Do not turn preferences about exact pins versus compatible ranges into findings.
 
-#### 依赖约束与解析
-- 通配符约束（如 `*`）、不受约束的 `dev-*` 分支，或在没有已提交且当前有效的锁文件的情况下引入的可变 VCS 引用，而应用构建必须可重现，或可重用库中由使用者自行解析依赖。兼容版本范围对于库来说是正常的，默认不应标记。
-- 变更后的约束意外允许不兼容的主版本、排除仓库支持的范围，或与另一个直接需求冲突。
-- 同一包在 `require` 和 `require-dev` 中声明不一致，或生产包仅通过开发依赖可用。
-- 新使用的包或必需的 PHP 扩展未包含在 `require` 中，导致干净的生产安装失败。
-- 在没有适用于已解析版本范围的可靠公告证据时，不要报告已知漏洞。
+#### Dependency Constraints and Resolution
+- Wildcard constraints such as `*`, unconstrained `dev-*` branches, or mutable VCS references introduced without a committed, current lock file where application builds must be reproducible, or in a reusable library where consumers resolve dependencies themselves. Compatible version ranges are normal for libraries and should not be flagged by default.
+- A changed constraint that unintentionally permits an incompatible major version, excludes the repository's supported range, or conflicts with another direct requirement.
+- The same package declared inconsistently across `require` and `require-dev`, or a production package available only through development dependencies.
+- A newly used package or mandatory PHP extension absent from `require`, causing clean production installs to fail.
+- Do not report a known vulnerability without reliable advisory evidence applicable to the resolved version range.
 
-#### PHP 与平台兼容性
-- `php` 约束与变更代码使用的语法或 API、框架支持的范围，或 CI 和部署中配置的运行时相矛盾。
-- 必需的本地扩展缺少 `ext-*` 要求，或即使代码具有可用的可选回退方案，扩展要求仍被设为强制。
-- `config.platform` 掩盖了生产中会出现的运行时或扩展不匹配。在报告前确认实际部署平台。
-- Composer 或插件 API 要求与 CI、容器或发布工具使用的 Composer 版本不兼容。
+#### PHP and Platform Compatibility
+- The `php` constraint contradicts syntax or APIs used by the changed code, the framework's supported range, or the runtime configured in CI and deployment.
+- A required native extension missing from `ext-*` requirements, or an extension requirement made mandatory even though the code has a working optional fallback.
+- `config.platform` masking a runtime or extension mismatch that will occur in production. Confirm the actual deployment platform before reporting.
+- Composer or plugin API requirements incompatible with the Composer version used by CI, containers, or release tooling.
 
-#### 自动加载与包布局
-- 错误的 PSR-4 命名空间前缀或路径、解析错误类的重叠前缀，或因自动加载配置而无法访问的移动类。
-- 生产类仅放在 `autoload-dev` 中，或测试专用辅助函数通过生产自动加载暴露，从而改变打包行为。
-- `autoload.files` 新增内容在每次 Composer 引导时执行副作用，或依赖不安全的初始化顺序。
-- 目录移动或重命名后，类映射、排除或文件条目未及时更新。
+#### Autoloading and Package Layout
+- Incorrect PSR-4 namespace prefixes or paths, overlapping prefixes that resolve the wrong class, or moved classes left unreachable by autoload configuration.
+- Production classes placed only in `autoload-dev`, or test-only helpers exposed through production autoloading when that changes packaged behavior.
+- `autoload.files` additions that execute side effects on every Composer bootstrap or rely on an unsafe initialization order.
+- Classmap, exclusion, or files entries left stale after directories are moved or renamed.
 
-#### 脚本与插件执行
-- 生命周期脚本执行破坏性命令、将不受信任的环境值插入 shell、在 CI 中要求交互输入，或调用声明依赖中不可用的工具。
-- Composer 脚本递归调用 Composer，或使生产安装依赖仅开发用的包或本地状态。
-- 新要求的 Composer 插件没有明确的 `config.allow-plugins` 决策，或通配符/宽泛授权允许意外插件代码在安装或更新期间执行。
-- 不要仅因脚本或插件执行代码就标记它们；需确认存在具体的危险命令、信任边界变更或安装失败。
+#### Scripts and Plugin Execution
+- Lifecycle scripts that run destructive commands, interpolate untrusted environment values into a shell, require interactive input in CI, or invoke tools not available from declared dependencies.
+- Composer scripts that recursively invoke Composer or make production installation depend on development-only packages or local state.
+- A newly required Composer plugin without an intentional `config.allow-plugins` decision, or wildcard/broad authorization that permits unexpected plugin code to execute during install or update.
+- Do not flag scripts or plugins solely because they execute code; establish a concrete unsafe command, trust-boundary change, or installation failure.
 
-#### 仓库与供应链
-- 禁用 `secure-http`、明文仓库 URL、嵌入的凭据，或新引入的包源缺乏适当的完整性和访问控制。
-- 仓库优先级或规范设置可能导致私有/公共包从意外来源解析。
-- `package` 或 VCS 仓库指向可变或不可验证的构建产物，而需要可重现的源选择。
-- 提交的清单数据中暴露的密钥、令牌或私有仓库凭据。仅当清单公开发布且 URL 本身泄露敏感基础设施信息时，才报告内部 URL。
+#### Repositories and Supply Chain
+- `secure-http` disabled, plaintext repository URLs, embedded credentials, or newly introduced package sources without appropriate integrity and access controls.
+- Repository priority or canonical settings that can cause a private/public package to resolve from an unintended source.
+- `package` or VCS repositories pointing to mutable or unverifiable artifacts where reproducible source selection is required.
+- Secrets, tokens, or private repository credentials exposed in committed manifest data. Report an internal URL only when the manifest is publicly distributed and the URL itself reveals sensitive infrastructure information.
 
-#### 稳定性、包语义与发布元数据
-- 削弱 `minimum-stability` 使无关的开发包可以进入解析，尤其是在没有 `prefer-stable` 的情况下；请验证严格约束的开发依赖是否足够。
-- 错误的 `replace`、`provide` 或 `conflict` 声明可能导致 Composer 省略所需实现或接受不兼容的包。
-- 对 `type`、`bin`、安装器路径、归档包含/排除规则或框架 `extra` 元数据的更改，破坏安装或打包。
-- 已发布包缺少或无效的必需元数据，仅当仓库实际作为包分发时才适用；不要将发布要求应用于私有应用。
+#### Stability, Package Semantics, and Release Metadata
+- `minimum-stability` weakened so unrelated development packages can enter resolution, especially without `prefer-stable`; verify whether a narrowly constrained development dependency would suffice.
+- Incorrect `replace`, `provide`, or `conflict` declarations that can make Composer omit a required implementation or accept an incompatible package.
+- Changes to `type`, `bin`, installer paths, archive include/exclude rules, or framework `extra` metadata that break installation or packaging.
+- Published packages missing or invalid required metadata only when the repository is actually distributed as a package; do not apply publishing requirements to private applications.

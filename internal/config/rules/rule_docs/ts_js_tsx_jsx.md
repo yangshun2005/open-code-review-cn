@@ -1,40 +1,40 @@
-#### 明显拼写错误或拼写错误
-- 变量名、函数名、组件名或 Props 属性名中的拼写错误
-- 日志或错误消息中包含影响可读性的拼写错误的字符串
+#### Obvious Typos or Spelling Errors
+- Spelling errors in variable names, function names, component names, or Props property names
+- Strings in log or error messages containing spelling errors that affect readability
 
-#### 死代码
-- 永远不会执行的代码块（例如，条件始终为 false 的分支、return 语句之后的代码）
-- 已声明但从未读取或引用的变量
-- 大块被注释掉的代码（且没有明显的保留意图）
+#### Dead Code
+- Code blocks that will never be executed (e.g., branches where the condition is always false, code after a return statement)
+- Variables that are declared but never read or referenced
+- Large blocks of commented-out code (with no apparent intent to retain)
 
-#### 代码质量检查
-- **重复代码**：检查是否存在可提取的公共逻辑
-- **代码注释**：复杂的业务逻辑应有清晰易懂的解释性注释（避免注释显而易见的代码）
-- **硬编码**：禁止与业务相关的硬编码字符串，尤其是 URL 路径和业务编号；简单的 UI 文本可适当放宽
-- **变量声明**：严禁使用 `var`；请使用 `let` 或 `const`
-- **相等比较**：禁止使用 `==` 和 `!=`；请使用严格相等 `===` 和 `!==`
-- **TypeScript 类型**：避免使用 `any` 类型；如有必要，请添加注释说明原因
-- **空值检查**：访问值或解构时执行空值检查，以避免空指针异常
-- **三元表达式**：不允许嵌套三元表达式
+#### Code Quality Checks
+- **Duplicate Code**: Check for common logic that can be extracted
+- **Code Comments**: Complex business logic should have clear explanatory comments (avoid commenting obvious code)
+- **Hardcoding**: Business-related hardcoded strings are prohibited, especially URL paths and business numbers; simple UI text may be relaxed
+- **Variable Declarations**: Using `var` is strictly prohibited; use `let` or `const`
+- **Equality Comparisons**: Using `==` and `!=` is prohibited; use strict equality `===` and `!==`
+- **TypeScript Types**: Avoid using `any` type; if necessary, provide a comment explaining the reason
+- **Null Checks**: Perform null checks when accessing values or destructuring to avoid null pointer exceptions
+- **Ternary Expressions**: Nested ternary expressions are not allowed
 
-#### React 最佳实践
-- **Hooks 使用**：验证是否符合 Hooks 规则（仅在顶层调用，仅在 React 函数中调用）
-- **状态管理**：确保状态放置在合适的层级；避免不必要的状态提升
-- **副作用处理**：验证 useEffect 是否正确处理依赖项和清理函数
-- **性能优化**：验证是否正确使用 React.memo、useMemo、useCallback（基于性能分析；避免过度优化）
-- **渲染副作用**：严禁在 React 组件渲染方法中产生副作用（例如，API 调用、DOM 操作）
-- **内联样式**：避免使用内联 `style` 属性，动态样式除外
-- **内部组件**：禁止在组件内部声明新组件；请使用渲染方法（例如，`renderItem`，而不是 `<Item/>`）
+#### React Best Practices
+- **Hooks Usage**: Verify compliance with Hooks rules (only call at the top level, only call in React functions)
+- **State Management**: Ensure state is placed at the appropriate level; avoid unnecessary state lifting
+- **Side Effect Handling**: Verify useEffect correctly handles dependencies and cleanup functions
+- **Performance Optimization**: Verify proper use of React.memo, useMemo, useCallback (based on performance analysis; avoid over-optimization)
+- **Render Side Effects**: Side effects in React component render methods are strictly prohibited (e.g., API calls, DOM manipulation)
+- **Inline Styles**: Avoid using inline `style` attributes, except for dynamic styles
+- **Inner Components**: Declaring new components inside a component is prohibited; use render methods instead (e.g., `renderItem`, not `<Item/>`)
 
-#### 异步处理标准
-- **错误处理**：异步函数必须包含适当的错误处理，并提供用户友好的错误消息
-- **优先使用 async/await**：优先使用 async/await 而非 Promise；禁止回调地狱
-- **循环中的异步**：区分独立异步操作（使用 `Promise.all` 实现并行）和依赖异步操作（使用顺序执行）；优先使用 `Promise.all` 以提高性能
+#### Async Handling Standards
+- **Error Handling**: Async functions must include proper error handling with user-friendly error messages
+- **Prefer async/await**: Prefer async/await over Promises; callback hell is prohibited
+- **Async in Loops**: Distinguish between independent async operations (use `Promise.all` for parallelism) and dependent async operations (use sequential execution); prefer `Promise.all` for performance
 
-#### 代码安全检查
-- **XSS 防护**：验证用户输入是否被正确转义
-- **innerHTML 安全性**：禁止使用 innerHTML 直接插入用户输入；请使用 textContent 或应用 XSS 防护
-- **代码注入防护**：严禁使用 eval()、Function() 构造函数以及 setTimeout/setInterval 的字符串参数形式
-- **危险方法**：禁止使用 document.write()，因为它会导致页面重排并引发安全问题
-- **敏感信息**：检查 API 密钥或敏感数据是否暴露
-- **原型链安全**：禁止修改原生对象原型（例如，Array.prototype、Object.prototype）
+#### Code Security Checks
+- **XSS Protection**: Verify that user input is properly escaped
+- **innerHTML Safety**: Using innerHTML to directly insert user input is prohibited; use textContent or apply XSS protection
+- **Code Injection Protection**: Using eval(), Function() constructor, and string argument forms of setTimeout/setInterval is strictly prohibited
+- **Dangerous Methods**: Using document.write() is prohibited as it causes page reflow and security issues
+- **Sensitive Information**: Check whether API keys or sensitive data are exposed
+- **Prototype Chain Safety**: Modifying native object prototypes (e.g., Array.prototype, Object.prototype) is prohibited

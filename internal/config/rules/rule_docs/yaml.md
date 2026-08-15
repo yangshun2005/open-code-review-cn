@@ -1,1 +1,1 @@
-检查 YAML 文件中的 yaml-keys 是否存在拼写错误；忽略 yaml-values 的内容。
+Check for spelling errors in yaml-keys within YAML files; ignore the content of yaml-values.

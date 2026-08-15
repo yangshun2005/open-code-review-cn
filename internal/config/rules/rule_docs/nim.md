@@ -1,42 +1,42 @@
-> 宁缺毋滥：仅报告可能导致错误行为、内存不安全、安全漏洞或严重性能问题的 Issue。不要报告由 `nimpretty` 处理的格式问题，并在提出兼容性发现之前，考虑项目的 Nim 版本、内存管理模式和编译时定义。
+> Favor precision over recall: report only issues that are likely to cause incorrect behavior, memory unsafety, security vulnerabilities, or material performance problems. Do not report formatting handled by `nimpretty`, and account for the project's Nim version, memory-management mode, and compile-time defines before raising compatibility findings.
 
-#### 内存与生命周期安全
-- 引用、指针、切片或 `openArray` 视图的生命周期超过其所引用的存储，尤其是源自栈局部变量、临时序列或字符串的地址
-- 在没有本地确立类型、对齐、边界、所有权和生命周期不变量的情况下，使用 `cast`、`addr`、`unsafeAddr`、手动分配或指针算术
-- 分配和释放 API 不匹配、双重销毁或手动管理资源缺少清理
-- 在 ARC 或其他无循环收集的内存管理模式下，引用循环导致资源无限期保留；对于包含循环收集器的 ORC，不要报告此问题
-- 在没有生命周期或所有权缺陷证据的情况下，不要报告普通托管引用或值拷贝
+#### Memory and Lifetime Safety
+- References, pointers, slices, or `openArray` views that outlive the storage they refer to, especially addresses derived from stack locals, temporary sequences, or strings
+- `cast`, `addr`, `unsafeAddr`, manual allocation, or pointer arithmetic without a locally established type, alignment, bounds, ownership, and lifetime invariant
+- Mismatched allocation and deallocation APIs, double destruction, or missing cleanup for manually managed resources
+- Reference cycles that retain resources indefinitely under ARC or another memory-management mode without cycle collection; do not report this for ORC, which includes a cycle collector
+- Do not report ordinary managed references or value copies without evidence of a lifetime or ownership defect
 
-#### 边界、值与控制流
-- 数组、序列或字符串索引，其中可达索引可能为负或超过 `low`/`high`，包括错误的包含性范围边界
-- 在项目的溢出检查设置下，可能导致溢出、截断或产生无效枚举值的整数转换、`ord`、枚举转换或算术运算
-- 判别字段的更改或读取与活动分支不一致的变体对象
-- `case` 语句、对象构造或结果路径，使可达值未被处理或无意返回默认值
-- 在发布构建中可能禁用断言检查时，使用断言来验证不可信或运行时输入
+#### Bounds, Values, and Control Flow
+- Array, sequence, or string indexing where a reachable index can be negative or exceed `low`/`high`, including incorrect inclusive range boundaries
+- Integer conversions, `ord`, enum casts, or arithmetic that can overflow, truncate, or produce an invalid enum value under the project's overflow-check settings
+- Variant objects whose discriminant is changed or read inconsistently with the active branch
+- `case` statements, object construction, or result paths that leave a reachable value unhandled or unintentionally return the default value
+- Assertions used to validate untrusted or runtime input when assertion checks may be disabled in release builds
 
-#### 错误与资源清理
-- `except:` 或过于宽泛的异常处理，吞没缺陷、取消或可操作上下文，然后返回看似合理的结果
-- 在没有 `defer`、`try/finally` 或所有权抽象的情况下获取资源，当异常或提前返回可能导致资源泄漏时
-- 在可复用的库或服务器代码中，对普通无效输入使用 `raiseAssert`、`quit` 或不可恢复的缺陷
-- 在失败会改变正确性或留下部分状态的边界处，忽略错误码或 `Option`/`Result` 值
+#### Errors and Resource Cleanup
+- `except:` or overly broad exception handling that swallows defects, cancellation, or actionable context and then returns a plausible result
+- Resources acquired without `defer`, `try/finally`, or an ownership abstraction when an exception or early return can leak them
+- `raiseAssert`, `quit`, or unrecoverable defects used for ordinary invalid input in reusable library or server code
+- Error-code or `Option`/`Result` values ignored at boundaries where failure changes correctness or leaves partial state behind
 
-#### 模板、宏与编译时代码
-- 模板对可能具有副作用的参数进行多次求值；将表达式绑定到局部 `let`，以便每次模板调用只求值一次
-- 宏构造标识符或 AST 节点时，未保留卫生性、源信息或预期的符号绑定
-- `static`、`compileTime` 或宏执行读取可变外部状态，使构建不可重现，除非项目有明确要求
-- 未经严格验证，将不可信文本合并到生成的 Nim、shell 命令或编译器调用中
-- 当生成的行为清晰且参数安全求值时，不要报告普通模板或宏的使用
+#### Templates, Macros, and Compile-Time Code
+- Templates that evaluate an argument more than once when the argument may have side effects; bind the expression to a local `let` so it is evaluated once per template invocation
+- Macros that construct identifiers or AST nodes without preserving hygiene, source information, or the expected symbol binding
+- `static`, `compileTime`, or macro execution that reads mutable external state and makes builds non-reproducible without an explicit project requirement
+- Untrusted text incorporated into generated Nim, shell commands, or compiler invocations without strict validation
+- Do not report ordinary template or macro use when the generated behavior is clear and arguments are evaluated safely
 
-#### 并发、异步与效果
-- 线程访问共享可变状态，而没有锁、通道、原子操作或既定的单所有者设计
-- 在阻塞操作、回调或 `await` 期间持有锁，造成死锁或饥饿风险
-- 启动的 Future 未等待、返回或以其他方式观察失败，而完成对正确性至关重要时
-- 在异步请求路径中引入阻塞的文件、进程、睡眠或网络操作
-- 线程过程或回调捕获的数据，其生命周期在线程或外部调用者完成之前结束
+#### Concurrency, Async, and Effects
+- Shared mutable state accessed by threads without a lock, channel, atomic operation, or established single-owner design
+- Locks held across blocking operations, callbacks, or `await`, creating deadlock or starvation risks
+- Futures started without awaiting, returning, or otherwise observing failures when completion matters to correctness
+- Blocking file, process, sleep, or network operations introduced into an async request path
+- Thread procedures or callbacks that capture data whose lifetime ends before the thread or foreign caller finishes
 
-#### FFI 与安全边界
-- `importc`、`exportc`、`dynlib` 或回调声明，具有不兼容的调用约定、类型、结构布局、可空性或所有权规则
-- 消费 C 字符串或缓冲区时，未验证空终止、长度、编码和生命周期
-- 将用户控制的数据传递给 `execShellCmd`、shell 调用、SQL 构造、路径访问、反序列化或代码求值，而未进行适当的验证或参数化
-- 将机密、凭据、令牌或私有数据嵌入源代码、命令参数、日志、异常或生成的构建产物中
-- 使用非加密随机性或临时加密代码生成加密密钥或安全令牌
+#### FFI and Security Boundaries
+- `importc`, `exportc`, `dynlib`, or callback declarations with incompatible calling conventions, types, struct layout, nullability, or ownership rules
+- C strings or buffers consumed without validating null termination, length, encoding, and lifetime
+- User-controlled data passed to `execShellCmd`, a shell invocation, SQL construction, path access, deserialization, or code evaluation without appropriate validation or parameterization
+- Secrets, credentials, tokens, or private data embedded in source, command arguments, logs, exceptions, or generated artifacts
+- Cryptographic keys or security tokens generated with non-cryptographic randomness or ad hoc cryptographic code

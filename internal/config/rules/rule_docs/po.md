@@ -1,28 +1,29 @@
-> 宁缺毋滥：仅在确信存在真实缺陷时才提出 Issue，当上下文不明确时保持沉默——一次误报比漏掉一个小问题更损害评审者的信任。将事实性错误和占位符不匹配视为阻塞性问题，将风格建议视为非阻塞性问题。
+> Favor precision over recall: only raise an issue when you are confident it is a real defect, and stay silent when the surrounding context is unclear — a false alarm costs more reviewer trust than a missed minor issue. Treat factual errors and placeholder mismatches as blocking, and style suggestions as non-blocking.
 
-#### 翻译中的事实性错误
-- `msgstr` 与 `msgid` 的含义相矛盾或歪曲（误译、遗漏从句，或文本属于其他条目）
-- `msgstr` 中的数字、单位、日期或专有名词与 `msgid` 不匹配（例如，将“100 MB”译为“100 GB”）
-- 当含义保持不变时，不报告主观措辞偏好、语气或地区变体
+#### Factual Errors in Translation
+- The `msgstr` contradicts or distorts the meaning of its `msgid` (mistranslation, omitted clauses, or text belonging to a different entry)
+- Numbers, units, dates, or proper nouns in the `msgstr` that do not match the `msgid` (e.g., "100 MB" translated as "100 GB")
+- Do not report subjective wording preferences, tone, or regional variants when the meaning is preserved
 
-#### 格式与结构
-- `msgid`/`msgstr` 字符串中的引号不平衡或未转义，导致条目损坏
-- 多行续接字符串拼接错误（片段之间缺少尾随空格/换行，导致结果文本改变）
-- 非模糊条目完全缺少 `msgstr`，或存在没有前置 `msgid` 的孤立 `msgstr`
-- 文件内存在相互冲突的重复 `msgid` 定义
+#### Format and Structure
+- Unbalanced or unescaped quotes in `msgid`/`msgstr` strings, breaking the entry
+- Multi-line continuation strings concatenated incorrectly (missing trailing space/newline between fragments that changes the resulting text)
+- `msgstr` missing entirely for a non-fuzzy entry, or orphaned `msgstr` without a preceding `msgid`
+- Duplicate `msgid` definitions within the file that conflict with each other
 
-#### 占位符不匹配
-- `msgid` 中存在的格式占位符（`%s`、`%d`、`%.2f`、`%(name)s`）在 `msgstr` 中缺失、重排（未使用 `%1$s` 等位置标记）或类型改变
-- `msgstr` 中重命名了命名占位符（例如，`%(user)s` 变为 `%(name)s`），导致运行时查找失败
-- 花括号样式占位符（`{0}`、`{name}`、`{{count}}`）在 `msgid` 和 `msgstr` 之间的数量或名称不同
-- 不报告使用显式位置标记正确表达的重排
+#### Placeholder Mismatch
+- Format placeholders (`%s`, `%d`, `%.2f`, `%(name)s`) present in the `msgid` but missing, reordered (without positional markers like `%1$s`), or changed in type in the `msgstr`
+- Named placeholders renamed in the `msgstr` (e.g., `%(user)s` becoming `%(name)s`), which breaks lookups at runtime
+- Brace-style placeholders (`{0}`, `{name}`, `{{count}}`) whose count or names differ between `msgid` and `msgstr`
+- Do not report reordering that is correctly expressed with explicit positional markers
 
-#### 复数形式
-- `msgstr[n]` 条目的数量与 `Plural-Forms` 头中声明的 `nplurals` 不匹配
-- 存在 `msgid_plural` 但仅提供 `msgstr[0]`，或 `msgstr[n]` 索引跳过值
-- 复数规则要求多种形式的语言（例如，阿拉伯语、俄语、波兰语）在数量变化时仅提供复制单数形式的单一形式
+#### Plural Forms
+- Number of `msgstr[n]` entries does not match the `nplurals` declared in the `Plural-Forms` header
+- `msgid_plural` present but only `msgstr[0]` provided, or `msgstr[n]` indices that skip values
+- A language whose plural rules require multiple forms (e.g., Arabic, Russian, Polish) given a single form that copies the singular, when the count varies
 
-#### 转义与周围空白
-- 损坏的转义序列（`\n`、`\t`、`\"`）导致字面渲染或提前终止字符串
-- `msgid` 中存在的前导/尾随空白或尾随 `\n` 在 `msgstr` 中缺失（或额外添加），导致布局或拼接差异
-- `msgstr` 中存在编码损坏的字符（乱码）
+#### Escapes and Surrounding Whitespace
+- Broken escape sequences (`\n`, `\t`, `\"`) that render literally or terminate the string early
+- Leading/trailing whitespace or trailing `\n` present in the `msgid` but missing (or added) in the `msgstr`, causing layout or concatenation differences
+- Encoding-corrupted characters (mojibake) in the `msgstr`
+
