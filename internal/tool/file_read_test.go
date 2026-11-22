@@ -1,0 +1,655 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 alibaba/open-code-review Contributors
+
+package tool
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
+
+func writeTestFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReadLines_Disk_FullFile(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "a.txt", "line1\nline2\nline3\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, total, err := fr.ReadLines(context.Background(), "a.txt", 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// strings.Split("line1\nline2\nline3\n", "\n") produces 4 elements (trailing empty)
+	if total != 4 {
+		t.Errorf("totalLines = %d, want 4", total)
+	}
+	want := []string{"line1", "line2", "line3", ""}
+	if len(lines) != len(want) {
+		t.Fatalf("got %d lines, want %d", len(lines), len(want))
+	}
+	for i, w := range want {
+		if lines[i] != w {
+			t.Errorf("lines[%d] = %q, want %q", i, lines[i], w)
+		}
+	}
+}
+
+func TestReadLines_Disk_Window(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "b.txt", "a\nb\nc\nd\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, total, err := fr.ReadLines(context.Background(), "b.txt", 2, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if total != 5 {
+		t.Errorf("totalLines = %d, want 5", total)
+	}
+	want := []string{"b", "c"}
+	if len(lines) != len(want) {
+		t.Fatalf("got %d lines, want %d", len(lines), len(want))
+	}
+	for i, w := range want {
+		if lines[i] != w {
+			t.Errorf("lines[%d] = %q, want %q", i, lines[i], w)
+		}
+	}
+}
+
+func TestReadLines_Disk_EmptyFile(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "empty.txt", "")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, total, err := fr.ReadLines(context.Background(), "empty.txt", 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if total != 0 {
+		t.Errorf("totalLines = %d, want 0", total)
+	}
+	if len(lines) != 0 {
+		t.Errorf("got %d lines, want 0", len(lines))
+	}
+}
+
+func TestReadLines_Disk_StartBeyondEOF(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "short.txt", "only\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, total, err := fr.ReadLines(context.Background(), "short.txt", 100, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if total != 2 {
+		t.Errorf("totalLines = %d, want 2", total)
+	}
+	if len(lines) != 0 {
+		t.Errorf("got %d lines, want 0", len(lines))
+	}
+}
+
+func TestReadLines_Disk_TrailingNewline(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "trail.txt", "x\ny\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, total, err := fr.ReadLines(context.Background(), "trail.txt", 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// strings.Split("x\ny\n", "\n") = ["x","y",""] → 3 elements
+	if total != 3 {
+		t.Errorf("totalLines = %d, want 3", total)
+	}
+	if len(lines) != 3 {
+		t.Fatalf("got %d lines, want 3", len(lines))
+	}
+	if lines[2] != "" {
+		t.Errorf("lines[2] = %q, want empty", lines[2])
+	}
+}
+
+func TestReadLines_Disk_NoTrailingNewline(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "notrail.txt", "x\ny")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, total, err := fr.ReadLines(context.Background(), "notrail.txt", 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// strings.Split("x\ny", "\n") = ["x","y"] → 2 elements
+	if total != 2 {
+		t.Errorf("totalLines = %d, want 2", total)
+	}
+	if len(lines) != 2 {
+		t.Fatalf("got %d lines, want 2", len(lines))
+	}
+}
+
+func TestReadLines_GitShow_Window(t *testing.T) {
+	dir := setupTestRepo(t)
+	commit := getHeadCommit(t, dir)
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeCommit, Ref: commit}
+	lines, total, err := fr.ReadLines(context.Background(), "hello.go", 1, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// hello.go = "package main\n\nfunc Hello() {}\n" → 4 elements via strings.Split
+	if total != 4 {
+		t.Errorf("totalLines = %d, want 4", total)
+	}
+	if len(lines) < 1 || lines[0] != "package main" {
+		t.Errorf("first line = %q, want %q", lines[0], "package main")
+	}
+}
+
+func TestReadLines_Disk_RejectsParentTraversal(t *testing.T) {
+	base := t.TempDir()
+	repoDir := filepath.Join(base, "repo")
+	if err := os.Mkdir(repoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	secretPath := filepath.Join(base, "secret.txt")
+	if err := os.WriteFile(secretPath, []byte("outside-secret\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	escapePath, err := filepath.Rel(repoDir, secretPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fr := &FileReader{RepoDir: repoDir, Mode: ModeWorkspace}
+	if _, _, err := fr.ReadLines(context.Background(), escapePath, 1, 10); err == nil || !strings.Contains(err.Error(), "outside repository") {
+		t.Fatalf("ReadLines(%q) error = %v, want outside repository", escapePath, err)
+	}
+	if _, err := fr.Read(context.Background(), escapePath); err == nil || !strings.Contains(err.Error(), "outside repository") {
+		t.Fatalf("Read(%q) error = %v, want outside repository", escapePath, err)
+	}
+}
+
+func TestReadLines_Disk_AllowsParentSegmentWithinRepo(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "pkg"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, dir, "target.txt", "inside\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, _, err := fr.ReadLines(context.Background(), filepath.Join("pkg", "..", "target.txt"), 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) == 0 || lines[0] != "inside" {
+		t.Fatalf("ReadLines(pkg/../target.txt) = %q, want inside", lines)
+	}
+}
+
+func TestReadLines_Disk_AbsolutePathStaysUnderRepo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("absolute path syntax varies on Windows")
+	}
+
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "etc"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	writeTestFile(t, dir, filepath.Join("etc", "passwd"), "repo-passwd\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, _, err := fr.ReadLines(context.Background(), "/etc/passwd", 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) == 0 || lines[0] != "repo-passwd" {
+		t.Fatalf("ReadLines(/etc/passwd) = %q, want repo-passwd", lines)
+	}
+}
+
+func TestReadLines_Disk_MissingFilePreservesReadError(t *testing.T) {
+	dir := t.TempDir()
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+
+	_, _, err := fr.ReadLines(context.Background(), "missing.txt", 1, 10)
+	if err == nil {
+		t.Fatal("ReadLines(missing.txt) error = nil, want not exist")
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ReadLines(missing.txt) error = %v, want os.ErrNotExist", err)
+	}
+	if !strings.Contains(err.Error(), `read file "missing.txt"`) || strings.Contains(err.Error(), "resolve file") {
+		t.Fatalf("ReadLines(missing.txt) error = %v, want read file error", err)
+	}
+
+	_, err = fr.Read(context.Background(), "missing.txt")
+	if err == nil {
+		t.Fatal("Read(missing.txt) error = nil, want not exist")
+	}
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Read(missing.txt) error = %v, want os.ErrNotExist", err)
+	}
+	if !strings.Contains(err.Error(), `read file "missing.txt"`) || strings.Contains(err.Error(), "resolve file") {
+		t.Fatalf("Read(missing.txt) error = %v, want read file error", err)
+	}
+}
+
+func TestReadLines_Disk_RejectsSymlinkOutsideRepo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink privileges vary on Windows")
+	}
+
+	base := t.TempDir()
+	repoDir := filepath.Join(base, "repo")
+	if err := os.Mkdir(repoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	secretPath := filepath.Join(base, "secret.txt")
+	if err := os.WriteFile(secretPath, []byte("outside-secret\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(secretPath, filepath.Join(repoDir, "link.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	fr := &FileReader{RepoDir: repoDir, Mode: ModeWorkspace}
+	if _, _, err := fr.ReadLines(context.Background(), "link.txt", 1, 10); err == nil || !strings.Contains(err.Error(), "outside repository") {
+		t.Fatalf("ReadLines(link.txt) error = %v, want outside repository", err)
+	}
+}
+
+func TestReadLines_Disk_AllowsSymlinkInsideRepo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink privileges vary on Windows")
+	}
+
+	dir := t.TempDir()
+	writeTestFile(t, dir, "target.txt", "inside\n")
+	if err := os.Symlink(filepath.Join(dir, "target.txt"), filepath.Join(dir, "link.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	lines, _, err := fr.ReadLines(context.Background(), "link.txt", 1, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lines) == 0 || lines[0] != "inside" {
+		t.Fatalf("ReadLines(link.txt) = %q, want inside", lines)
+	}
+}
+
+func TestExecute_Truncation(t *testing.T) {
+	dir := t.TempDir()
+
+	var sb strings.Builder
+	for i := 1; i <= 600; i++ {
+		fmt.Fprintf(&sb, "line %d\n", i)
+	}
+	writeTestFile(t, dir, "big.txt", sb.String())
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	result, err := p.Execute(context.Background(), map[string]any{
+		"file_path": "big.txt",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(result, "IS_TRUNCATED: true") {
+		t.Error("expected IS_TRUNCATED: true")
+	}
+	if !strings.Contains(result, "LINE_RANGE: 1-500") {
+		t.Error("expected LINE_RANGE: 1-500")
+	}
+	if !strings.Contains(result, "Results truncated to 500 lines") {
+		t.Error("expected truncation note")
+	}
+	if strings.Contains(result, "501|") {
+		t.Error("line 501 should not appear in output")
+	}
+}
+
+func TestFileReadProvider_Tool(t *testing.T) {
+	p := NewFileRead(&FileReader{RepoDir: "/tmp"})
+	if p.Tool() != FileRead {
+		t.Errorf("Tool() = %v, want FileRead", p.Tool())
+	}
+}
+
+func TestExecute_EmptyFilePath(t *testing.T) {
+	fr := &FileReader{RepoDir: t.TempDir(), Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	got, err := p.Execute(context.Background(), map[string]any{"file_path": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Error: file_path is required" {
+		t.Errorf("Execute() = %q, want file_path required error", got)
+	}
+}
+
+func TestExecute_InvalidLineRange(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "test.txt", "a\nb\nc\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	_, err := p.Execute(context.Background(), map[string]any{
+		"file_path":  "test.txt",
+		"start_line": float64(5),
+		"end_line":   float64(2),
+	})
+	if err == nil {
+		t.Error("expected error for invalid line range")
+	}
+}
+
+func TestExecute_StartBeyondTotalLines(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "short.txt", "one\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	_, err := p.Execute(context.Background(), map[string]any{
+		"file_path":  "short.txt",
+		"start_line": float64(100),
+		"end_line":   float64(200),
+	})
+	if err == nil {
+		t.Error("expected error for start beyond total lines")
+	}
+}
+
+func TestExecute_MissingFile(t *testing.T) {
+	fr := &FileReader{RepoDir: t.TempDir(), Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	_, err := p.Execute(context.Background(), map[string]any{"file_path": "missing.txt"})
+	if err == nil {
+		t.Error("expected error for missing file")
+	}
+}
+
+func TestExecute_CommitMode(t *testing.T) {
+	dir := setupTestRepo(t)
+	commit := getHeadCommit(t, dir)
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeCommit, Ref: commit}
+	p := NewFileRead(fr)
+
+	got, err := p.Execute(context.Background(), map[string]any{"file_path": "hello.go"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "package main") {
+		t.Errorf("expected file content, got: %s", got)
+	}
+	if !strings.Contains(got, "IS_TRUNCATED: false") {
+		t.Error("expected IS_TRUNCATED: false")
+	}
+}
+
+func TestExecute_DefaultStartLine(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "d.txt", "a\nb\nc\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	got, err := p.Execute(context.Background(), map[string]any{
+		"file_path":  "d.txt",
+		"start_line": float64(0),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(got, "LINE_RANGE: 1-") {
+		t.Errorf("expected default start_line=1, got: %s", got)
+	}
+}
+
+// setupTestRepo is already defined in code_search_test.go (same package)
+// getHeadCommit is already defined in code_search_test.go (same package)
+
+func TestExecute_WithEndLine(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "c.txt", "a\nb\nc\nd\ne\n")
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	result, err := p.Execute(context.Background(), map[string]any{
+		"file_path":  "c.txt",
+		"start_line": float64(2),
+		"end_line":   float64(4),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(result, "IS_TRUNCATED: false") {
+		t.Error("expected IS_TRUNCATED: false")
+	}
+	if !strings.Contains(result, "LINE_RANGE: 2-4") {
+		t.Error("expected LINE_RANGE: 2-4")
+	}
+	if !strings.Contains(result, "2|b") {
+		t.Error("expected line 2")
+	}
+	if !strings.Contains(result, "4|d") {
+		t.Error("expected line 4")
+	}
+	if strings.Contains(result, "5|e") {
+		t.Error("line 5 should not appear")
+	}
+}
+
+// A minified or generated file can pack its whole content into one line, which
+// the 500-line cap counts as a single line. The tool result must still bound
+// that line's bytes and say so, instead of dropping megabytes into the
+// conversation with IS_TRUNCATED: false.
+func TestExecute_SingleOversizeLineIsCapped(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "receipt.json", `{"data":"`+strings.Repeat("a", 170_000)+`"}`)
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	result, err := p.Execute(context.Background(), map[string]any{
+		"file_path": "receipt.json",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(result, "IS_TRUNCATED: true") {
+		t.Error("expected IS_TRUNCATED: true for a byte-capped single line")
+	}
+	if !strings.Contains(result, "[line truncated,") {
+		t.Error("expected an explicit line-truncation marker")
+	}
+	if !strings.Contains(result, "LINE_RANGE: 1-1") {
+		t.Errorf("expected the single line to still be reported, got header: %s", result)
+	}
+	if len(result) > fileReadMaxLineBytes+4096 {
+		t.Errorf("result body = %d bytes, want it bounded near the %d byte per-line cap", len(result), fileReadMaxLineBytes)
+	}
+}
+
+func TestExecute_UnrenderedOversizeLineDoesNotReportLineTruncation(test *testing.T) {
+	dir := test.TempDir()
+	content := strings.Repeat(strings.Repeat("b", fileReadMaxLineBytes)+"\n", 127) +
+		strings.Repeat("b", fileReadMaxLineBytes+1)
+	writeTestFile(test, dir, "bundle.txt", content)
+	provider := NewFileRead(&FileReader{RepoDir: dir, Mode: ModeWorkspace})
+
+	result, err := provider.Execute(context.Background(), map[string]any{
+		"file_path": "bundle.txt",
+	})
+	if err != nil {
+		test.Fatal(err)
+	}
+
+	if !strings.Contains(result, "IS_TRUNCATED: true\n") {
+		test.Error("expected IS_TRUNCATED: true when the result budget excludes a line")
+	}
+	if !strings.Contains(result, "LINE_RANGE: 1-127\n") {
+		test.Error("expected LINE_RANGE to contain only the 127 rendered lines")
+	}
+	if !strings.Contains(result, "\n127|"+strings.Repeat("b", fileReadMaxLineBytes)+"\n") {
+		test.Error("expected the last rendered line to be complete")
+	}
+	if strings.Contains(result, "\n128|") {
+		test.Error("the oversized line must be excluded by the result budget")
+	}
+	if !strings.Contains(result, "Note: Output truncated at") {
+		test.Error("expected a result-budget truncation note")
+	}
+	if strings.Contains(result, "[line truncated,") {
+		test.Error("expected no line-truncation markers in the complete rendered lines")
+	}
+	if strings.Contains(result, "Note: Lines longer than") {
+		test.Error("an unrendered oversized line must not trigger the line-truncation note")
+	}
+}
+
+// The per-line cap alone is not enough: 500 capped lines can still render
+// far more bytes than one request should carry, so the total rendered body
+// needs its own budget with a truthful range and note.
+func TestExecute_TotalResultBytesCapped(t *testing.T) {
+	dir := t.TempDir()
+
+	var sb strings.Builder
+	for i := 1; i <= 400; i++ {
+		sb.WriteString(strings.Repeat("b", 2048))
+		sb.WriteByte('\n')
+	}
+	writeTestFile(t, dir, "bundle.txt", sb.String())
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	result, err := p.Execute(context.Background(), map[string]any{
+		"file_path": "bundle.txt",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(result, "IS_TRUNCATED: true") {
+		t.Error("expected IS_TRUNCATED: true when the total byte budget stops rendering")
+	}
+	if !strings.Contains(result, "Output truncated at") {
+		t.Error("expected a total-size truncation note")
+	}
+	if strings.Contains(result, "LINE_RANGE: 1-400") {
+		t.Error("LINE_RANGE must not claim lines whose bytes were omitted")
+	}
+	if len(result) > fileReadMaxResultBytes+4096 {
+		t.Errorf("result body = %d bytes, want it bounded near the %d byte budget", len(result), fileReadMaxResultBytes)
+	}
+}
+
+// The budget must be counted over the fully formatted lines: the line-number
+// prefix and the trailing newline are body bytes too. Counting only the line
+// content lets the rendered body drift past the cap by the accumulated
+// per-line overhead (~2 KiB here), so this test measures the rendered body
+// exactly. With 499 rendered lines of 525 bytes the content-only accounting
+// reaches 264,362 body bytes against the 262,144-byte budget.
+func TestExecute_ResultBudgetCountsFormattedLine(t *testing.T) {
+	dir := t.TempDir()
+
+	var sb strings.Builder
+	for i := 1; i <= 600; i++ {
+		sb.WriteString(strings.Repeat("b", 525))
+		sb.WriteByte('\n')
+	}
+	writeTestFile(t, dir, "bundle.txt", sb.String())
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	result, err := p.Execute(context.Background(), map[string]any{
+		"file_path": "bundle.txt",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !strings.Contains(result, "IS_TRUNCATED: true") {
+		t.Error("expected IS_TRUNCATED: true when the total byte budget stops rendering")
+	}
+	if !strings.Contains(result, "Output truncated at") {
+		t.Error("expected a total-size truncation note")
+	}
+	if strings.Contains(result, "LINE_RANGE: 1-600") {
+		t.Error("LINE_RANGE must not claim lines whose bytes were omitted")
+	}
+
+	// Strip the three header lines and the trailing notes, leaving exactly
+	// the rendered "N|text\n" lines, whose total must not exceed the budget.
+	body := result
+	if i := strings.Index(body, "\nNote:"); i >= 0 {
+		body = body[:i]
+	}
+	for k := 0; k < 3; k++ {
+		body = body[strings.IndexByte(body, '\n')+1:]
+	}
+	if len(body) > fileReadMaxResultBytes {
+		t.Errorf("rendered body = %d bytes, exceeds the %d byte budget: the line-number prefix and newline bytes are not being counted", len(body), fileReadMaxResultBytes)
+	}
+}
+
+// The mid-line cut must land on a UTF-8 rune boundary so the rendered line
+// stays valid UTF-8 instead of ending in a split multibyte sequence.
+func TestExecute_LineCapIsUtf8Safe(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "cjk.txt", strings.Repeat("中", 2000)+"\n") // allow-non-english: fixture exercises the UTF-8 rune-boundary cut
+
+	fr := &FileReader{RepoDir: dir, Mode: ModeWorkspace}
+	p := NewFileRead(fr)
+
+	result, err := p.Execute(context.Background(), map[string]any{
+		"file_path": "cjk.txt",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	marker := strings.Index(result, " …[line truncated,")
+	if marker < 0 {
+		t.Fatal("expected a line-truncation marker")
+	}
+	visible := result[strings.Index(result, "1|")+2 : marker]
+	if !utf8.ValidString(visible) {
+		t.Error("cut line is not valid UTF-8: a multibyte rune was split")
+	}
+}
